@@ -1,0 +1,31 @@
+# Entorno virtual
+venv/
+env/
+.venv/
+
+# Caches de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pycache
+
+# Archivos de audio temporales
+*.mp3
+*.wav
+
+# Carpetas del IDE y sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Bóveda de Obsidian (notas personales)
+Boveda_Obsidian/
+
+# Logs y archivos temporales
+*.log
+*.tmp
+
+# Variables de entorno
+.env
