@@ -1,4 +1,3 @@
-import os
 import subprocess
 import sys
 import psutil
@@ -132,40 +131,23 @@ def obtener_temperatura() -> str:
 
 def abrir_aplicacion(nombre_app: str) -> str:
     """
-    Abre una aplicación en Windows mediante un mapeo estricto y directo de nombres.
-    Si el nombre no coincide con una clave del mapeo, intenta lanzarlo directamente con os.system(start ...).
-    Si no se encuentra, retorna un aviso indicando que no se encontró el ejecutable.
+    Abre una aplicación en Windows solo si está en la lista permitida (allowlist).
+    No ejecuta nombres arbitrarios ni usa shell=True.
     """
     if not nombre_app:
         return "No se especificó ninguna aplicación para abrir."
 
     app_limpia = nombre_app.strip().lower()
 
-    # 1. Comprobación estricta en el diccionario de mapeo
-    if app_limpia in MAPA_APLICACIONES:
-        ejecutable = MAPA_APLICACIONES[app_limpia]
-        try:
-            if sys.platform == "win32":
-                os.system(f"start {ejecutable}")
-            else:
-                subprocess.Popen([ejecutable], shell=True)
-            return f"Abriendo {nombre_app} correctamente."
-        except Exception as e:
-            return f"Error al intentar ejecutar '{nombre_app}': {e}"
+    if app_limpia not in MAPA_APLICACIONES:
+        return f"La aplicación '{nombre_app}' no está permitida."
 
-    # 2. Intento de lanzamiento directo del comando / aplicación
+    ejecutable = MAPA_APLICACIONES[app_limpia]
     try:
-        if sys.platform == "win32":
-            retorno = os.system(f'start "" "{app_limpia}"')
-        else:
-            retorno = os.system(f"{app_limpia} &")
-
-        if retorno == 0:
-            return f"Abriendo {nombre_app} correctamente."
-        else:
-            return f"No se encontró el ejecutable para la aplicación '{nombre_app}'."
+        subprocess.Popen(["cmd", "/c", "start", "", ejecutable], shell=False)
+        return f"Abriendo {nombre_app} correctamente."
     except Exception as e:
-        return f"Error al intentar abrir '{nombre_app}': {e}"
+        return f"Error al intentar ejecutar '{nombre_app}': {e}"
 
 if __name__ == "__main__":
     print("==================================================")

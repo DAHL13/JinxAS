@@ -11,9 +11,6 @@ if sys.platform == "win32":
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RUTA_VAULT = os.path.join(_BASE_DIR, "Boveda_Obsidian")
 
-# Crear la carpeta si no existe
-os.makedirs(RUTA_VAULT, exist_ok=True)
-
 def _normalizar_nombre_archivo(titulo: str) -> str:
     """
     Convierte un título a un nombre de archivo válido en formato .md.
@@ -24,6 +21,7 @@ def _normalizar_nombre_archivo(titulo: str) -> str:
     nombre = re.sub(r'[\\/:*?"<>|]', '', nombre)
     # Reemplazar espacios múltiples con uno solo
     nombre = re.sub(r'\s+', ' ', nombre)
+    nombre = nombre[:80]
     # Asegurarse de que termine en .md
     if not nombre.lower().endswith('.md'):
         nombre = nombre + '.md'
@@ -39,6 +37,7 @@ def guardar_nota(titulo: str, contenido: str) -> str:
     if not titulo or not titulo.strip():
         return "No se proporcionó un título para la nota."
 
+    os.makedirs(RUTA_VAULT, exist_ok=True)
     nombre_archivo = _normalizar_nombre_archivo(titulo)
     ruta_archivo = os.path.join(RUTA_VAULT, nombre_archivo)
     ahora = datetime.now().strftime("%Y-%m-%d %H:%M")

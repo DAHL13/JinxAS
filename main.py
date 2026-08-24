@@ -57,7 +57,7 @@ def iniciar_asistente():
                     if match:
                         nombre_app = match.group(1).strip()
                     else:
-                        nombre_app = respuesta.split("[ACCION:ABRIR_APP:")[1].replace("]", "").strip()
+                        nombre_app = respuesta.split("[ACCION:ABRIR_APP:")[1].split("]")[0].strip()
 
                     print(f"[📂] Solicitando apertura de: '{nombre_app}'...")
                     resultado_apertura = abrir_aplicacion(nombre_app)
@@ -78,7 +78,7 @@ def iniciar_asistente():
                         contenido_nota = match.group(2).strip()
                     else:
                         # Fallback: extraer todo el bloque
-                        bloque = respuesta.split("[ACCION:GUARDAR_NOTA:")[1].replace("]", "").strip()
+                        bloque = respuesta.split("[ACCION:GUARDAR_NOTA:")[1].split("]")[0].strip()
                         partes = bloque.split("|", 1)
                         titulo_nota = partes[0].strip()
                         contenido_nota = partes[1].strip() if len(partes) > 1 else texto_usuario.strip()
@@ -130,6 +130,7 @@ def iniciar_asistente():
             break
         except Exception as e:
             print(f"\n[X] Ocurrió un error en el ciclo principal: {e}")
+            time.sleep(2)
 
 if __name__ == "__main__":
     try:
