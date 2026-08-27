@@ -1,10 +1,11 @@
 import logging
 import os
 import sys
+import tempfile
 import time
 import asyncio
 import edge_tts
-from config import ARCHIVO_TTS_TEMPORAL, VOZ_TTS
+from config import VOZ_TTS
 
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 import pygame
@@ -17,13 +18,18 @@ async def _generar_audio_edge(texto: str, voz: str, archivo: str):
     comunicador = edge_tts.Communicate(texto, voz)
     await comunicador.save(archivo)
 
-def reproducir_voz(texto: str, voz: str = VOZ_TTS, archivo_temporal: str = ARCHIVO_TTS_TEMPORAL):
+def reproducir_voz(texto: str, voz: str = VOZ_TTS):
     """
     Genera audio a partir de texto usando edge-tts y lo reproduce con pygame.mixer de forma bloqueante.
-    Libera y elimina el archivo temporal tras finalizar la reproducción.
+    Usa un archivo temporal dinámico por invocación para evitar colisiones y limpiar el sistema correctamente.
     """
     if not texto or not texto.strip():
         return
+
+    # Crear un archivo temporal único para esta reproducción
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+    archivo_temporal = tmp.name
+    tmp.close()  # Cerrar antes de que edge-tts escriba en él
 
     try:
         # Generar archivo de audio con edge-tts
@@ -47,7 +53,7 @@ def reproducir_voz(texto: str, voz: str = VOZ_TTS, archivo_temporal: str = ARCHI
     except Exception as e:
         logging.error("Error en módulo de voz TTS: %s", e)
     finally:
-        # Eliminar archivo temporal
+        # Eliminar archivo temporal dinámico del sistema
         if os.path.exists(archivo_temporal):
             try:
                 os.remove(archivo_temporal)

@@ -82,7 +82,16 @@ def iniciar_asistente():
 
                 logging.info('Procesando respuesta para: "%s"...', texto_reconocido)
                 contexto.append({"role": "user", "content": texto_reconocido})
-                contexto = [contexto[0]] + contexto[1:][-8:]
+
+                # Recortar el historial manteniendo siempre el mensaje de sistema (índice 0)
+                # y las últimas 8 entradas del historial de conversación.
+                # Si el punto de corte cae sobre un mensaje 'tool', se retrocede hasta incluir
+                # el 'assistant' con tool_calls que lo originó, para no romper el par.
+                cola = contexto[1:][-8:]
+                while cola and cola[0].get("role") == "tool":
+                    cola = cola[1:]
+                contexto = [contexto[0]] + cola
+
                 respuesta = procesar_pensamiento(contexto)
                 contexto.append(respuesta)
 
@@ -108,7 +117,8 @@ def iniciar_asistente():
                 else:
                     texto_final = (respuesta.get("content") or "").strip()
 
-                if contexto[-1] is not respuesta:
+                # Agregar la respuesta final al contexto solo si no está ya registrada
+                if contexto[-1] != respuesta:
                     contexto.append(respuesta)
 
                 logging.info("Respuesta Jinx: %s", texto_final)

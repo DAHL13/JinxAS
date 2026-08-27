@@ -8,7 +8,6 @@ IDIOMA_WHISPER = "es"
 TIEMPO_MAXIMO_ESCUCHA = 8
 PHRASE_TIME_LIMIT = 8
 VOZ_TTS = "es-MX-DaliaNeural"
-ARCHIVO_TTS_TEMPORAL = "respuesta.mp3"
 RUTA_VAULT = os.path.join(_BASE_DIR, "Boveda_Obsidian")
 TITULO_NOTA_MAX = 80
 
