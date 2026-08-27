@@ -85,10 +85,9 @@ def obtener_temperatura() -> str:
             logging.error("No se pudo leer temperatura por WMI/PowerShell: %s", e)
 
     # 3. Fallback informativo y amable.
-    # Se usa interval=None para reutilizar la última medición de psutil sin bloquear
-    # (psutil ya habrá medido el valor si obtener_estado_sistema() fue llamada antes).
+    # Se usa interval=0.2 para obtener una medición real e independiente sin importar el orden de llamada.
     try:
-        cpu_uso = psutil.cpu_percent(interval=None)
+        cpu_uso = psutil.cpu_percent(interval=0.2)
     except Exception as e:
         logging.error("Error al medir uso de CPU: %s", e)
         cpu_uso = 0.0
