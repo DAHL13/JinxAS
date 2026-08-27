@@ -1,15 +1,13 @@
+import logging
 import os
 import re
 import sys
 from datetime import datetime
+from config import RUTA_VAULT, TITULO_NOTA_MAX
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
-
-# Ruta de la bóveda de Obsidian (relativa a la raíz del proyecto)
-_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RUTA_VAULT = os.path.join(_BASE_DIR, "Boveda_Obsidian")
 
 def _normalizar_nombre_archivo(titulo: str) -> str:
     """
@@ -21,7 +19,7 @@ def _normalizar_nombre_archivo(titulo: str) -> str:
     nombre = re.sub(r'[\\/:*?"<>|]', '', nombre)
     # Reemplazar espacios múltiples con uno solo
     nombre = re.sub(r'\s+', ' ', nombre)
-    nombre = nombre[:80]
+    nombre = nombre[:TITULO_NOTA_MAX]
     # Asegurarse de que termine en .md
     if not nombre.lower().endswith('.md'):
         nombre = nombre + '.md'
@@ -58,6 +56,7 @@ def guardar_nota(titulo: str, contenido: str) -> str:
             return f"Nota '{titulo}' creada correctamente en la bóveda ({ahora})."
 
     except Exception as e:
+        logging.error("Error al guardar la nota '%s': %s", titulo, e)
         return f"Error al guardar la nota '{titulo}': {e}"
 
 def buscar_nota(palabra_clave: str) -> str:
@@ -75,6 +74,7 @@ def buscar_nota(palabra_clave: str) -> str:
     try:
         archivos_md = [f for f in os.listdir(RUTA_VAULT) if f.lower().endswith('.md')]
     except Exception as e:
+        logging.error("Error al acceder a la bóveda: %s", e)
         return f"Error al acceder a la bóveda: {e}"
 
     if not archivos_md:
@@ -106,7 +106,8 @@ def buscar_nota(palabra_clave: str) -> str:
                     resumen += "\n" + "\n".join(extracto)
                 resultados.append(resumen)
 
-        except Exception:
+        except Exception as e:
+            logging.error("Error al leer la nota '%s': %s", archivo, e)
             continue
 
     if resultados:
@@ -116,21 +117,16 @@ def buscar_nota(palabra_clave: str) -> str:
         return f"No se encontraron notas sobre '{palabra_clave}' en la bóveda."
 
 if __name__ == "__main__":
-    print("==================================================")
-    print("    MÓDULO DE MEMORIA - BÓVEDA OBSIDIAN           ")
-    print("==================================================")
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
+    logging.info("Módulo de memoria - bóveda Obsidian")
 
-    # Prueba: guardar una nota nueva
-    print("\n--- PRUEBA: GUARDAR NOTA ---")
+    logging.info("Prueba: guardar nota")
     resultado_guardar = guardar_nota(
         "Jinx Primera Prueba",
         "Esta es la primera nota de prueba guardada por Jinx. Todo funciona correctamente."
     )
-    print(resultado_guardar)
+    logging.info(resultado_guardar)
 
-    # Prueba: buscar la nota recién creada
-    print("\n--- PRUEBA: BUSCAR NOTA ---")
+    logging.info("Prueba: buscar nota")
     resultado_buscar = buscar_nota("Jinx")
-    print(resultado_buscar)
-
-    print("==================================================")
+    logging.info(resultado_buscar)

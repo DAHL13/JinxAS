@@ -1,47 +1,12 @@
+import logging
 import subprocess
 import sys
 import psutil
+from config import MAPA_APLICACIONES
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
-
-# Diccionario de comandos y ejecutables comunes en Windows
-MAPA_APLICACIONES = {
-    # Navegadores
-    'navegador': 'msedge',
-    'edge': 'msedge',
-    'microsoft edge': 'msedge',
-    'chrome': 'chrome',
-    'google chrome': 'chrome',
-
-    # Código y desarrollo
-    'codigo': 'code',
-    'código': 'code',
-    'vscode': 'code',
-    'visual studio': 'code',
-    'visual studio code': 'code',
-    'code': 'code',
-
-    # Bloc de notas
-    'bloc de notas': 'notepad',
-    'notas': 'notepad',
-    'notepad': 'notepad',
-
-    # Calculadora
-    'calculadora': 'calc',
-    'calc': 'calc',
-
-    # Terminal / Consola
-    'terminal': 'cmd',
-    'cmd': 'cmd',
-    'consola': 'cmd',
-    'simbolo del sistema': 'cmd',
-
-    # Extras comunes
-    'spotify': 'spotify',
-    'discord': 'discord',
-}
 
 def obtener_estado_sistema() -> str:
     """
@@ -76,6 +41,7 @@ def obtener_estado_sistema() -> str:
         return resumen
 
     except Exception as e:
+        logging.error("Error al obtener el estado del sistema: %s", e)
         return f"Error al obtener el estado del sistema: {e}"
 
 def obtener_temperatura() -> str:
@@ -95,8 +61,8 @@ def obtener_temperatura() -> str:
                         lineas.append(f"{nombre} ({entrada.label or 'sensor'}): {entrada.current:.1f}°C")
                 if lineas:
                     return "Lectura de temperatura de sensores:\n" + "\n".join(lineas)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.error("No se pudieron leer sensores de temperatura con psutil: %s", e)
 
     # 2. Intentar con WMI / PowerShell en Windows
     if sys.platform == "win32":
@@ -115,13 +81,14 @@ def obtener_temperatura() -> str:
                 temp_c = result.stdout.strip().splitlines()[0]
                 if temp_c:
                     return f"La temperatura actual de la CPU / sistema es de {temp_c}°C."
-        except Exception:
-            pass
+        except Exception as e:
+            logging.error("No se pudo leer temperatura por WMI/PowerShell: %s", e)
 
     # 3. Fallback informativo y amable
     try:
         cpu_uso = psutil.cpu_percent(interval=0.5)
-    except Exception:
+    except Exception as e:
+        logging.error("Error al medir uso de CPU: %s", e)
         cpu_uso = 0.0
 
     return (
@@ -147,17 +114,14 @@ def abrir_aplicacion(nombre_app: str) -> str:
         subprocess.Popen(["cmd", "/c", "start", "", ejecutable], shell=False)
         return f"Abriendo {nombre_app} correctamente."
     except Exception as e:
+        logging.error("Error al intentar ejecutar '%s': %s", nombre_app, e)
         return f"Error al intentar ejecutar '{nombre_app}': {e}"
 
 if __name__ == "__main__":
-    print("==================================================")
-    print("       MÓDULO DE HERRAMIENTAS - PRUEBAS           ")
-    print("==================================================")
-    print("\n--- ESTADO DEL SISTEMA ---")
-    print(obtener_estado_sistema())
-    print("\n--- TEMPERATURA DEL SISTEMA ---")
-    print(obtener_temperatura())
-    print("\n--- PRUEBA: ABRIR BLOC DE NOTAS ---")
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
+    logging.info("Módulo de herramientas - pruebas")
+    logging.info("Estado del sistema:\n%s", obtener_estado_sistema())
+    logging.info("Temperatura del sistema:\n%s", obtener_temperatura())
+    logging.info("Prueba: abrir bloc de notas")
     resultado_app = abrir_aplicacion("bloc de notas")
-    print(resultado_app)
-    print("==================================================")
+    logging.info(resultado_app)

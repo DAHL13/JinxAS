@@ -1,42 +1,130 @@
+import logging
 import sys
 import ollama
+from config import MODELO_LLM, SYSTEM_PROMPT
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
 
-SYSTEM_PROMPT = """Eres Jinx, un asistente de voz local genial, directo, brillante y astuto. 
-Reglas obligatorias:
-1. Responde SIEMPRE en español.
-2. Mantén tus respuestas extremadamente concisas y breves (máximo 2 a 3 oraciones) porque tus respuestas se convertirán en audio hablado.
-3. Habla con confianza, energía y un toque de chispa ingeniosa.
-4. NUNCA digas que eres Qwen ni que fuiste creado por Alibaba Cloud. Eres Jinx.
-5. ACCIONES Y HERRAMIENTAS:
-   - Si el usuario pregunta sobre RAM, CPU, disco o el estado general de la computadora/PC ➔ Responde ÚNICAMENTE con [ACCION:ESTADO_SISTEMA].
-   - Si el usuario pregunta específicamente sobre la temperatura, calor o grados de la computadora/procesador ➔ Responde ÚNICAMENTE con [ACCION:TEMPERATURA].
-   - Si el usuario pide abrir, lanzar o ejecutar una aplicación (ej. 'abre el bloc de notas', 'lanza la calculadora', 'abre vscode'), debes responder ÚNICAMENTE con la etiqueta: [ACCION:ABRIR_APP:nombre_de_la_app] (ejemplo: [ACCION:ABRIR_APP:calculadora]).
-   - Si el usuario pide recordar, anotar, guardar o tomar nota de algo (ej. 'recuerda que mañana tengo examen', 'anota la idea del proyecto') ➔ Responde ÚNICAMENTE con la etiqueta: [ACCION:GUARDAR_NOTA:titulo|contenido] (ejemplo: [ACCION:GUARDAR_NOTA:examen fisica|Mañana tengo examen de física]).
-   - Si el usuario pregunta qué recuerdas o qué tienes anotado sobre un tema (ej. '¿qué tengo anotado sobre el proyecto?', 'busca mi nota de examen') ➔ Responde ÚNICAMENTE con la etiqueta: [ACCION:BUSCAR_NOTA:palabra_clave] (ejemplo: [ACCION:BUSCAR_NOTA:examen])."""
+ESQUEMAS_HERRAMIENTAS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "obtener_estado_sistema",
+            "description": "Obtiene un resumen del estado actual del sistema: CPU, RAM y disco.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "obtener_temperatura",
+            "description": "Intenta leer la temperatura de los sensores del sistema o informa el uso de CPU.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "abrir_aplicacion",
+            "description": "Abre una aplicación permitida en Windows (por ejemplo calculadora, notepad, vscode, chrome).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nombre_app": {
+                        "type": "string",
+                        "description": "Nombre de la aplicación a abrir, en minúsculas si es posible.",
+                    }
+                },
+                "required": ["nombre_app"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "guardar_nota",
+            "description": "Guarda o actualiza una nota Markdown en la bóveda de Obsidian.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "titulo": {
+                        "type": "string",
+                        "description": "Título de la nota.",
+                    },
+                    "contenido": {
+                        "type": "string",
+                        "description": "Texto a guardar en la nota.",
+                    },
+                },
+                "required": ["titulo", "contenido"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "buscar_nota",
+            "description": "Busca coincidencias de una palabra clave en las notas de la bóveda.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "palabra_clave": {
+                        "type": "string",
+                        "description": "Palabra o tema a buscar en títulos y contenidos.",
+                    }
+                },
+                "required": ["palabra_clave"],
+            },
+        },
+    },
+]
 
-def procesar_pensamiento(texto_entrada: str, modelo: str = "qwen2.5:3b") -> str:
+historial_mensajes = []
+
+def limpiar_historial() -> str:
+    historial_mensajes.clear()
+    return "Memoria de conversación borrada."
+
+def _mensaje_a_dict(mensaje) -> dict:
+    if isinstance(mensaje, dict):
+        return mensaje
+    if hasattr(mensaje, "model_dump"):
+        return mensaje.model_dump()
+    resultado = {
+        "role": getattr(mensaje, "role", "assistant"),
+        "content": getattr(mensaje, "content", "") or "",
+    }
+    tool_calls = getattr(mensaje, "tool_calls", None)
+    if tool_calls:
+        resultado["tool_calls"] = tool_calls
+    return resultado
+
+def procesar_pensamiento(mensajes: list, modelo: str = MODELO_LLM) -> dict:
     """
-    Envía una consulta a Ollama usando el modelo especificado y retorna la respuesta generada.
+    Envía una lista de mensajes a Ollama con tool calling nativo
+    y retorna el objeto completo del mensaje de respuesta.
     """
     try:
         response = ollama.chat(
             model=modelo,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": texto_entrada}
-            ]
+            messages=mensajes,
+            tools=ESQUEMAS_HERRAMIENTAS,
         )
-        return response["message"]["content"]
+        return _mensaje_a_dict(response["message"])
     except Exception as e:
         error_msg = f"[X] Error al comunicarse con Ollama: {e}"
-        print(error_msg)
-        return error_msg
+        logging.error(error_msg)
+        return {"role": "assistant", "content": error_msg}
 
-def procesar_estado_sistema(datos_sistema: str, pregunta_usuario: str = "", modelo: str = "qwen2.5:3b") -> str:
+def procesar_estado_sistema(datos_sistema: str, pregunta_usuario: str = "", modelo: str = MODELO_LLM) -> str:
     """
     Envía los datos de telemetría del sistema a Qwen para que redacte una respuesta corta,
     hablada (1 o 2 oraciones) y con el estilo característico de Jinx.
@@ -57,20 +145,18 @@ def procesar_estado_sistema(datos_sistema: str, pregunta_usuario: str = "", mode
         return response["message"]["content"]
     except Exception as e:
         error_msg = f"[X] Error al comunicarse con Ollama: {e}"
-        print(error_msg)
+        logging.error(error_msg)
         return error_msg
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
     mensaje_prueba = "¿Cómo está el estado de la computadora?"
-    print("==================================================")
-    print("   MÓDULO DE RAZONAMIENTO - CEREBRO CON OLLAMA    ")
-    print("==================================================")
-    print(f"[+] Enviando consulta a Ollama (modelo: 'qwen2.5:3b'): \"{mensaje_prueba}\"\n")
-    
-    resultado = procesar_pensamiento(mensaje_prueba)
-    
-    print("==================================================")
-    print("               RESPUESTA DE OLLAMA                ")
-    print("==================================================")
-    print(resultado)
-    print("==================================================\n")
+    logging.info("Módulo de razonamiento - cerebro con Ollama")
+    logging.info("Enviando consulta a Ollama (modelo: '%s'): \"%s\"", MODELO_LLM, mensaje_prueba)
+
+    resultado = procesar_pensamiento([
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": mensaje_prueba},
+    ])
+
+    logging.info("Respuesta de Ollama: %s", resultado)
