@@ -87,12 +87,6 @@ ESQUEMAS_HERRAMIENTAS = [
     },
 ]
 
-historial_mensajes = []
-
-def limpiar_historial() -> str:
-    historial_mensajes.clear()
-    return "Memoria de conversación borrada."
-
 def _mensaje_a_dict(mensaje) -> dict:
     if isinstance(mensaje, dict):
         return mensaje
@@ -123,30 +117,6 @@ def procesar_pensamiento(mensajes: list, modelo: str = MODELO_LLM) -> dict:
         error_msg = f"[X] Error al comunicarse con Ollama: {e}"
         logging.error(error_msg)
         return {"role": "assistant", "content": error_msg}
-
-def procesar_estado_sistema(datos_sistema: str, pregunta_usuario: str = "", modelo: str = MODELO_LLM) -> str:
-    """
-    Envía los datos de telemetría del sistema a Qwen para que redacte una respuesta corta,
-    hablada (1 o 2 oraciones) y con el estilo característico de Jinx.
-    """
-    prompt = (
-        f"El usuario preguntó: '{pregunta_usuario}'. "
-        f"Los datos reales del sistema son:\n{datos_sistema}\n"
-        "Redacta una respuesta muy breve (máximo 2 oraciones), conversacional, hablada y con tu estilo ingenioso y fresco (ej. 'Tienes la RAM al 45% y el procesador fresco al 12%')."
-    )
-    try:
-        response = ollama.chat(
-            model=modelo,
-            messages=[
-                {"role": "system", "content": "Eres Jinx, un asistente de voz genial, directo, brillante y astuto. Responde en español de forma hablada y concisa."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        return response["message"]["content"]
-    except Exception as e:
-        error_msg = f"[X] Error al comunicarse con Ollama: {e}"
-        logging.error(error_msg)
-        return error_msg
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")

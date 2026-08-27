@@ -3,7 +3,7 @@ import logging
 import sys
 import time
 from percepcion import escuchar_y_transcribir
-from cerebro import procesar_pensamiento, limpiar_historial
+from cerebro import procesar_pensamiento
 from voz import reproducir_voz
 from herramientas import obtener_estado_sistema, obtener_temperatura, abrir_aplicacion
 from memoria import guardar_nota, buscar_nota
@@ -51,6 +51,8 @@ def iniciar_asistente():
     logging.info("Jinx Asistente - asistente de voz local")
     logging.info("Di 'salir', 'cancelar', 'apagar', 'detener' o presiona Ctrl+C para salir.")
 
+    contexto = [{"role": "system", "content": SYSTEM_PROMPT}]
+
     while True:
         try:
             logging.info("Escuchando tu comando...")
@@ -73,16 +75,14 @@ def iniciar_asistente():
                 frases_reinicio = ["olvida todo", "borra la memoria", "nueva conversación"]
                 if any(frase in texto_limpio for frase in frases_reinicio):
                     logging.info("Reiniciando memoria de conversación...")
-                    limpiar_historial()
+                    contexto = [{"role": "system", "content": SYSTEM_PROMPT}]
                     reproducir_voz("Memoria borrada. ¿De qué hablamos ahora?")
                     time.sleep(0.8)
                     continue
 
                 logging.info('Procesando respuesta para: "%s"...', texto_reconocido)
-                contexto = [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": texto_reconocido},
-                ]
+                contexto.append({"role": "user", "content": texto_reconocido})
+                contexto = [contexto[0]] + contexto[1:][-8:]
                 respuesta = procesar_pensamiento(contexto)
                 contexto.append(respuesta)
 
@@ -107,6 +107,9 @@ def iniciar_asistente():
                     texto_final = (respuesta.get("content") or "").strip()
                 else:
                     texto_final = (respuesta.get("content") or "").strip()
+
+                if contexto[-1] is not respuesta:
+                    contexto.append(respuesta)
 
                 logging.info("Respuesta Jinx: %s", texto_final)
 
