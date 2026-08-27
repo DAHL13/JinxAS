@@ -163,6 +163,10 @@ JinxAS/
 
 ---
 
-## 📜 Licencia
+## 📜 Licencia y Créditos
+
+**Desarrollador:** DAHL ([@DAHL13](https://github.com/DAHL13))
+Proyecto personal, diseñado y dirigido con metodología VibeCoding
+(Cursor, Google Antigravity) y asistencia de IA para la implementación.
 
 Proyecto personal de desarrollo. Uso libre para aprendizaje y experimentación.
