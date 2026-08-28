@@ -16,8 +16,9 @@ El proyecto está dividido en **6 archivos**, cada uno con una responsabilidad e
 - Todos los demás módulos importan sus valores desde aquí — no hay configuración duplicada ni hardcodeada en otros archivos.
 
 ### Módulo 1 — Percepción · `percepcion.py`
-**Speech-to-Text (STT) con Whisper local**
+**Wake Word ultraligero + Speech-to-Text (STT) con Whisper local**
 
+- **Wake Word ("Jinx")**: Escucha pasiva continua 24/7 de ultrabajo consumo de CPU (offline con Vosk/OpenWakeWord), liberando completamente el micrófono antes de activar Whisper.
 - Captura audio del micrófono usando `SpeechRecognition` + `PyAudio`.
 - Calibra automáticamente el ruido ambiental antes de escuchar.
 - Transcribe el audio con **OpenAI Whisper** (modelo y parámetros definidos en `config.py`).
@@ -158,7 +159,7 @@ JinxAS/
 
 - ✅ **Fase 1** — Memoria de conversación persistente durante la sesión.
 - ✅ **Fase 2** — Tool calling nativo, configuración centralizada, logging.
-- 🚧 **Fase 3** — En desarrollo: nuevas capacidades (wake word, recordatorios/calendario, clima, control de música, uso automático de la bóveda como contexto).
+- 🚧 **Fase 3** — En desarrollo: Wake Word ("Jinx") ultraligero integrado; en progreso: recordatorios/calendario, clima, control de música, uso automático de la bóveda como contexto.
 - ⏳ **Fase 4** — Planeada: proactividad, interfaz visual simple, memoria semántica (RAG) sobre la bóveda.
 
 ---

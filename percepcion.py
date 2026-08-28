@@ -1,11 +1,15 @@
 import logging
 import re
 import sys
+import numpy as np
+import openwakeword.model
+import pyaudio
 # pyrefly: ignore [missing-import]
 import speech_recognition as sr
 from config import (
     IDIOMA_WHISPER,
     MODELO_WHISPER,
+    PALABRA_ACTIVACION,
     PHRASE_TIME_LIMIT,
     PROMPT_INICIAL_WHISPER,
     TIEMPO_MAXIMO_ESCUCHA,
@@ -14,6 +18,91 @@ from config import (
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
+
+_MODELO_OPENWAKEWORD = None
+
+def _obtener_modelo_openwakeword():
+    """
+    Obtiene o inicializa el modelo openWakeWord para detección ultraligera de wake word.
+    Se mantiene en memoria para evitar recargas constantes.
+    """
+    global _MODELO_OPENWAKEWORD
+    if _MODELO_OPENWAKEWORD is None:
+        try:
+            _MODELO_OPENWAKEWORD = openwakeword.model.Model(wakeword_models=["hey_jarvis"])
+        except Exception as e:
+            logging.error("Error al cargar el modelo openWakeWord: %s", e)
+            raise e
+    return _MODELO_OPENWAKEWORD
+
+def esperar_palabra_activacion(palabra_clave: str = PALABRA_ACTIVACION, variaciones: list = None) -> bool:
+    """
+    Escucha pasivamente en segundo plano con openWakeWord (offline)
+    hasta detectar la palabra clave de activación ('hey_jarvis').
+    
+    CRÍTICO: Libera y cierra por completo el stream y la instancia de PyAudio
+    en el bloque finally antes de retornar True, garantizando que el micrófono
+    quede completamente libre para Whisper.
+    """
+    try:
+        modelo = _obtener_modelo_openwakeword()
+    except Exception as e:
+        logging.error("No se pudo iniciar el reconocedor openWakeWord: %s", e)
+        return False
+
+    audio_p = None
+    stream = None
+    chunk = 1280
+
+    try:
+        audio_p = pyaudio.PyAudio()
+        stream = audio_p.open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=16000,
+            input=True,
+            frames_per_buffer=chunk
+        )
+        stream.start_stream()
+
+        contador_chunks = 0
+        while True:
+            data = stream.read(chunk, exception_on_overflow=False)
+            if not data:
+                continue
+
+            audio_chunk = np.frombuffer(data, dtype=np.int16)
+            prediccion = modelo.predict(audio_chunk)
+            score = prediccion.get("hey_jarvis", 0.0)
+            contador_chunks += 1
+
+            if score > 0.01 or contador_chunks % 25 == 0:
+                logging.info(f"[DEBUG WakeWord] Score Jarvis: {score}")
+
+            if score > 0.2:
+                return True
+
+    except KeyboardInterrupt:
+        return False
+    except OSError as e:
+        logging.error("Error de hardware/micrófono/PyAudio en detección de palabra clave: %s", e)
+        return False
+    except Exception as e:
+        logging.error("Error inesperado en espera de palabra clave: %s", e)
+        return False
+    finally:
+        # Liberación estricta de recursos del micrófono antes de salir
+        if stream is not None:
+            try:
+                stream.stop_stream()
+                stream.close()
+            except Exception as e:
+                logging.error("Error al cerrar stream de PyAudio: %s", e)
+        if audio_p is not None:
+            try:
+                audio_p.terminate()
+            except Exception as e:
+                logging.error("Error al finalizar PyAudio: %s", e)
 
 def limpiar_texto_transcrito(texto: str) -> str:
     """

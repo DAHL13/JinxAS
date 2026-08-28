@@ -2,13 +2,14 @@ import json
 import logging
 import sys
 import time
-from percepcion import escuchar_y_transcribir
+from percepcion import escuchar_y_transcribir, esperar_palabra_activacion
 from cerebro import procesar_pensamiento
 from voz import reproducir_voz
 from herramientas import obtener_estado_sistema, obtener_temperatura, abrir_aplicacion
 from memoria import guardar_nota, buscar_nota
 from config import (
     MODELO_WHISPER,
+    PALABRA_ACTIVACION,
     PHRASE_TIME_LIMIT,
     SYSTEM_PROMPT,
     TIEMPO_MAXIMO_ESCUCHA,
@@ -55,6 +56,15 @@ def iniciar_asistente():
 
     while True:
         try:
+            logging.info("Esperando palabra de activación 'Jinx'...")
+            activado = esperar_palabra_activacion(PALABRA_ACTIVACION)
+            if not activado:
+                continue
+
+            logging.info("¡Despierta!")
+            reproducir_voz("Dime")
+            time.sleep(0.3)
+
             logging.info("Escuchando tu comando...")
             texto_usuario = escuchar_y_transcribir(
                 modelo=MODELO_WHISPER,

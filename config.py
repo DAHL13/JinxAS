@@ -10,6 +10,7 @@ PHRASE_TIME_LIMIT = 8
 VOZ_TTS = "es-MX-DaliaNeural"
 RUTA_VAULT = os.path.join(_BASE_DIR, "Boveda_Obsidian")
 TITULO_NOTA_MAX = 80
+PALABRA_ACTIVACION = "jinx"
 
 PROMPT_INICIAL_WHISPER = (
     "Asistente de voz llamado Jinx. Comandos de código, programación, Python, apagar, salir, consultas técnicas."
