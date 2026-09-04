@@ -84,7 +84,7 @@ def esperar_palabra_activacion(palabra_clave: str = PALABRA_ACTIVACION, variacio
 
                     # Verificar si ALGUNA de las palabras en config.VARIANTES_WAKEWORD está en el texto
                     palabras_texto = texto_limpio.split()
-                    coincidencia = any(var in palabras_texto for var in variantes) or any(var in texto_limpio for var in variantes)
+                    coincidencia = any(var in palabras_texto for var in variantes)
 
                     if coincidencia:
                         logging.info("¡Palabra de activación detectada con éxito! ('%s')", texto_detectado)
