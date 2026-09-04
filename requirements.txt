@@ -29,9 +29,7 @@ networkx==3.6.1
 numba==0.67.0
 numpy==2.5.2
 ollama==0.6.2
-onnxruntime==1.29.0
 openai-whisper==20250625
-openwakeword==0.6.0
 packaging==26.3
 propcache==0.5.2
 protobuf==7.36.0

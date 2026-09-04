@@ -2,10 +2,10 @@ import logging
 import re
 import sys
 import numpy as np
-import openwakeword.model
-import pyaudio
 # pyrefly: ignore [missing-import]
 import speech_recognition as sr
+import whisper
+import config
 from config import (
     IDIOMA_WHISPER,
     MODELO_WHISPER,
@@ -19,90 +19,92 @@ if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
 
-_MODELO_OPENWAKEWORD = None
-
-def _obtener_modelo_openwakeword():
-    """
-    Obtiene o inicializa el modelo openWakeWord para detección ultraligera de wake word.
-    Se mantiene en memoria para evitar recargas constantes.
-    """
-    global _MODELO_OPENWAKEWORD
-    if _MODELO_OPENWAKEWORD is None:
-        try:
-            _MODELO_OPENWAKEWORD = openwakeword.model.Model(wakeword_models=["hey_jarvis"])
-        except Exception as e:
-            logging.error("Error al cargar el modelo openWakeWord: %s", e)
-            raise e
-    return _MODELO_OPENWAKEWORD
+_MODELO_CENTINELA = None
 
 def esperar_palabra_activacion(palabra_clave: str = PALABRA_ACTIVACION, variaciones: list = None) -> bool:
     """
-    Escucha pasivamente en segundo plano con openWakeWord (offline)
-    hasta detectar la palabra clave de activación ('hey_jarvis').
-    
-    CRÍTICO: Libera y cierra por completo el stream y la instancia de PyAudio
-    en el bloque finally antes de retornar True, garantizando que el micrófono
-    quede completamente libre para Whisper.
+    Modo Centinela: Escucha pasivamente en segundo plano con Whisper (modelo tiny.en)
+    hasta detectar la palabra clave de activación 'Jinx' o sus variantes fonéticas.
     """
+    global _MODELO_CENTINELA
+    if _MODELO_CENTINELA is None:
+        logging.info("Cargando modelo centinela de Whisper (%s)...", config.MODELO_WAKEWORD)
+        _MODELO_CENTINELA = whisper.load_model(config.MODELO_WAKEWORD)
+    modelo_centinela = _MODELO_CENTINELA
+
+    recognizer = sr.Recognizer()
+    recognizer.energy_threshold = 300
+    recognizer.dynamic_energy_threshold = True
+
+    variantes = list(config.VARIANTES_WAKEWORD)
+    if variaciones:
+        variantes.extend(variaciones)
+    if palabra_clave and palabra_clave.lower() not in variantes:
+        variantes.append(palabra_clave.lower())
+
     try:
-        modelo = _obtener_modelo_openwakeword()
-    except Exception as e:
-        logging.error("No se pudo iniciar el reconocedor openWakeWord: %s", e)
-        return False
+        with sr.Microphone() as source:
+            logging.info("Calibrando ruido ambiental para modo centinela...")
+            recognizer.adjust_for_ambient_noise(source, duration=1)
+            logging.info("Centinela activo. Esperando palabra de activación...")
 
-    audio_p = None
-    stream = None
-    chunk = 1280
+            while True:
+                try:
+                    # Captura ráfagas cortas con VAD nativo para esperar en silencio sin saturar CPU
+                    audio = recognizer.listen(source, timeout=1, phrase_time_limit=3)
+                except sr.WaitTimeoutError:
+                    continue
+                except sr.UnknownValueError:
+                    continue
 
-    try:
-        audio_p = pyaudio.PyAudio()
-        stream = audio_p.open(
-            format=pyaudio.paInt16,
-            channels=1,
-            rate=16000,
-            input=True,
-            frames_per_buffer=chunk
-        )
-        stream.start_stream()
+                try:
+                    # Convertir el audio capturado a numpy float32 a 16kHz en memoria
+                    raw_data = audio.get_raw_data(convert_rate=16000, convert_width=2)
+                    if not raw_data:
+                        continue
 
-        contador_chunks = 0
-        while True:
-            data = stream.read(chunk, exception_on_overflow=False)
-            if not data:
-                continue
+                    audio_np = np.frombuffer(raw_data, dtype=np.int16).astype(np.float32) / 32768.0
+                    if audio_np.size == 0:
+                        continue
 
-            audio_chunk = np.frombuffer(data, dtype=np.int16)
-            prediccion = modelo.predict(audio_chunk)
-            score = prediccion.get("hey_jarvis", 0.0)
-            contador_chunks += 1
+                    # Transcribir ráfaga con el modelo centinela
+                    resultado = modelo_centinela.transcribe(
+                        audio_np,
+                        language="en",
+                        fp16=False,
+                    )
+                    texto_detectado = resultado.get("text", "").strip()
+                    if not texto_detectado:
+                        continue
 
-            if score > 0.01 or contador_chunks % 25 == 0:
-                logging.info(f"[DEBUG WakeWord] Score Jarvis: {score}")
+                    # Convertir a minúsculas y eliminar signos de puntuación
+                    texto_limpio = texto_detectado.lower()
+                    texto_limpio = re.sub(r"[^\w\s]", "", texto_limpio)
+                    texto_limpio = re.sub(r"\s+", " ", texto_limpio).strip()
 
-            if score > 0.2:
-                return True
+                    # Verificar si ALGUNA de las palabras en config.VARIANTES_WAKEWORD está en el texto
+                    palabras_texto = texto_limpio.split()
+                    coincidencia = any(var in palabras_texto for var in variantes) or any(var in texto_limpio for var in variantes)
+
+                    if coincidencia:
+                        logging.info("¡Palabra de activación detectada con éxito! ('%s')", texto_detectado)
+                        return True
+
+                except sr.UnknownValueError:
+                    continue
+                except Exception as e:
+                    logging.debug("Ráfaga de audio no procesada o descartada: %s", e)
+                    continue
 
     except KeyboardInterrupt:
+        logging.info("Espera de palabra de activación interrumpida.")
         return False
     except OSError as e:
-        logging.error("Error de hardware/micrófono/PyAudio en detección de palabra clave: %s", e)
+        logging.error("Error de hardware o micrófono: %s", e)
         return False
     except Exception as e:
-        logging.error("Error inesperado en espera de palabra clave: %s", e)
+        logging.error("Error inesperado en centinela de activación: %s", e)
         return False
-    finally:
-        # Liberación estricta de recursos del micrófono antes de salir
-        if stream is not None:
-            try:
-                stream.stop_stream()
-                stream.close()
-            except Exception as e:
-                logging.error("Error al cerrar stream de PyAudio: %s", e)
-        if audio_p is not None:
-            try:
-                audio_p.terminate()
-            except Exception as e:
-                logging.error("Error al finalizar PyAudio: %s", e)
 
 def limpiar_texto_transcrito(texto: str) -> str:
     """
