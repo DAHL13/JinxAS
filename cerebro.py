@@ -85,6 +85,17 @@ ESQUEMAS_HERRAMIENTAS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "obtener_clima",
+            "description": "Obtiene el clima actual y la temperatura en Tehuacán.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
 ]
 
 def _mensaje_a_dict(mensaje) -> dict:

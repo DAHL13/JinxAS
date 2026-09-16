@@ -13,6 +13,7 @@ TITULO_NOTA_MAX = 80
 PALABRA_ACTIVACION = "jinx"
 MODELO_WAKEWORD = "tiny.en"
 VARIANTES_WAKEWORD = ["jinx", "jinks", "sphinx"]
+URL_CLIMA = "https://wttr.in/Tehuacán?format=%C+%t"
 
 PROMPT_INICIAL_WHISPER = (
     "Asistente de voz llamado Jinx. Comandos de código, programación, Python, apagar, salir, consultas técnicas."

@@ -2,6 +2,8 @@ import logging
 import subprocess
 import sys
 import psutil
+import requests
+import config
 from config import MAPA_APLICACIONES
 
 if sys.platform == "win32":
@@ -118,11 +120,26 @@ def abrir_aplicacion(nombre_app: str) -> str:
         logging.error("Error al intentar ejecutar '%s': %s", nombre_app, e)
         return f"Error al intentar ejecutar '{nombre_app}': {e}"
 
+def obtener_clima() -> str:
+    """
+    Obtiene el clima actual y la temperatura consultando la API de wttr.in
+    utilizando la URL configurada en config.py.
+    """
+    try:
+        respuesta = requests.get(config.URL_CLIMA, timeout=5)
+        if respuesta.status_code == 200:
+            return respuesta.text.strip()
+        return "Error: No se pudo obtener el clima en este momento."
+    except requests.RequestException as e:
+        logging.error("Error de red al consultar el clima: %s", e)
+        return "Error: No se pudo obtener el clima en este momento."
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
     logging.info("Módulo de herramientas - pruebas")
     logging.info("Estado del sistema:\n%s", obtener_estado_sistema())
     logging.info("Temperatura del sistema:\n%s", obtener_temperatura())
+    logging.info("Clima actual:\n%s", obtener_clima())
     logging.info("Prueba: abrir bloc de notas")
     resultado_app = abrir_aplicacion("bloc de notas")
     logging.info(resultado_app)

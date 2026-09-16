@@ -5,7 +5,12 @@ import time
 from percepcion import escuchar_y_transcribir, esperar_palabra_activacion
 from cerebro import procesar_pensamiento
 from voz import reproducir_voz
-from herramientas import obtener_estado_sistema, obtener_temperatura, abrir_aplicacion
+from herramientas import (
+    obtener_estado_sistema,
+    obtener_temperatura,
+    abrir_aplicacion,
+    obtener_clima,
+)
 from memoria import guardar_nota, buscar_nota
 from config import (
     MODELO_WHISPER,
@@ -27,6 +32,7 @@ FUNCIONES_DISPONIBLES = {
     "abrir_aplicacion": abrir_aplicacion,
     "guardar_nota": guardar_nota,
     "buscar_nota": buscar_nota,
+    "obtener_clima": obtener_clima,
 }
 
 def _extraer_llamada(tool_call) -> tuple:
