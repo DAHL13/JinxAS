@@ -72,7 +72,7 @@ ESQUEMAS_HERRAMIENTAS = [
         "type": "function",
         "function": {
             "name": "buscar_nota",
-            "description": "Busca coincidencias de una palabra clave en las notas de la bóveda.",
+            "description": "Busca una coincidencia exacta de una palabra clave en los títulos de las notas. NO usar para preguntas semánticas o conceptuales.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -100,11 +100,7 @@ ESQUEMAS_HERRAMIENTAS = [
         "type": "function",
         "function": {
             "name": "consultar_boveda",
-            "description": (
-                "Busca información, conceptos o código en los apuntes personales del usuario "
-                "en Obsidian. Úsala cuando el usuario pregunte por sus proyectos, clases o "
-                "conocimientos documentados."
-            ),
+            "description": "Búsqueda semántica (RAG) en los apuntes del usuario en Obsidian. Úsala SIEMPRE que el usuario haga preguntas abiertas sobre sus conocimientos, proyectos, clases o conceptos documentados.",
             "parameters": {
                 "type": "object",
                 "properties": {

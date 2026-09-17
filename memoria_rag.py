@@ -14,18 +14,25 @@ from tqdm import tqdm
 import config
 
 # ---------------------------------------------------------------------------
-# Carga global del modelo de embeddings (se hace UNA sola vez al importar)
-# all-MiniLM-L6-v2: ~80 MB en disco, ~22 M parámetros, muy rápido en CPU.
+# Carga perezosa (lazy loading) del modelo de embeddings
 # ---------------------------------------------------------------------------
-logging.info("[RAG] Cargando modelo de embeddings 'all-MiniLM-L6-v2'...")
-modelo_embedding = SentenceTransformer("all-MiniLM-L6-v2")
-logging.info("[RAG] Modelo de embeddings listo.")
+_modelo_embedding = None
+
+
+def _obtener_modelo() -> SentenceTransformer:
+    global _modelo_embedding
+    if _modelo_embedding is None:
+        logging.info("[RAG] Cargando modelo de embeddings '%s'...", config.MODELO_EMBEDDINGS)
+        _modelo_embedding = SentenceTransformer(config.MODELO_EMBEDDINGS)
+        logging.info("[RAG] Modelo de embeddings listo.")
+    return _modelo_embedding
 
 # ---------------------------------------------------------------------------
 # Estado global del índice (se construye una sola vez al inicio de Jinx)
 # ---------------------------------------------------------------------------
+_indice = None
 _indice_faiss = None
-_fragmentos: list = []    # Texto de cada chunk
+_fragmentos: list = []    # Metadatos/texto de cada chunk
 _origenes: list = []      # Nombre del archivo .md de cada chunk
 
 # ---------------------------------------------------------------------------
@@ -53,6 +60,54 @@ def _dividir_en_chunks(texto: str, nombre_archivo: str) -> list:
     return chunks
 
 
+def agregar_nota_al_indice(ruta_archivo: str, contenido: str) -> None:
+    """
+    Sincroniza en tiempo real el índice vectorial en memoria cuando se crea
+    o actualiza una nota en la bóveda durante la sesión.
+    """
+    global _indice, _indice_faiss, _fragmentos, _origenes
+
+    # a) Si _indice es None o _fragmentos es None, return silencioso
+    if _indice is None and _indice_faiss is not None:
+        _indice = _indice_faiss
+
+    if _indice is None or _fragmentos is None:
+        return
+
+    if not contenido or not contenido.strip():
+        return
+
+    # b) Extrae el nombre del archivo de la ruta_archivo
+    nombre_archivo = os.path.basename(ruta_archivo)
+
+    # c) Divide el contenido en fragmentos (~700 chars con solapamiento)
+    pares_chunks = _dividir_en_chunks(contenido, nombre_archivo)
+    chunks = [p[0] for p in pares_chunks]
+    if not chunks:
+        return
+
+    # d) Obtén el modelo con _obtener_modelo(), genera embeddings y normalízalos
+    modelo = _obtener_modelo()
+    embeddings = modelo.encode(
+        chunks,
+        batch_size=32,
+        show_progress_bar=False,
+        convert_to_numpy=True,
+        normalize_embeddings=True,
+    ).astype(np.float32)
+
+    # e) Agrega los embeddings al índice global: _indice.add(embeddings)
+    _indice.add(embeddings)
+    _indice_faiss = _indice
+
+    # f) Agrega los nuevos metadatos a la lista global
+    _fragmentos.extend([{"archivo": nombre_archivo, "texto": chunk} for chunk in chunks])
+    _origenes.extend([nombre_archivo for _ in chunks])
+
+    # g) Logging indicando que la nota fue añadida al índice en memoria
+    logging.info("[RAG] Nota '%s' añadida al índice en memoria (%d fragmentos).", nombre_archivo, len(chunks))
+
+
 def construir_indice() -> None:
     """
     Recorre recursivamente config.RUTA_VAULT buscando archivos .md,
@@ -60,7 +115,7 @@ def construir_indice() -> None:
     Los resultados se almacenan en variables globales para consultas rápidas.
     Se ignoran silenciosamente archivos que no se puedan leer.
     """
-    global _indice_faiss, _fragmentos, _origenes
+    global _indice, _indice_faiss, _fragmentos, _origenes
 
     ruta_vault = config.RUTA_VAULT
     logging.info("[RAG] Iniciando construcción del índice sobre: %s", ruta_vault)
@@ -69,12 +124,13 @@ def construir_indice() -> None:
         logging.warning(
             "[RAG] La bóveda no existe en '%s'. El índice quedará vacío.", ruta_vault
         )
+        _indice = None
         _indice_faiss = None
         _fragmentos = []
         _origenes = []
         return
 
-    print("Iniciando escaneo de la bóveda Obsidian...")
+    logging.info("Iniciando escaneo de la bóveda Obsidian...")
 
     archivos_md = []
     # Recorrido recursivo de la bóveda ignorando carpetas que empiezan con '.' (.obsidian, .git, .trash, etc.)
@@ -86,6 +142,7 @@ def construir_indice() -> None:
 
     if not archivos_md:
         logging.warning("[RAG] No se encontraron archivos .md en la bóveda.")
+        _indice = None
         _indice_faiss = None
         _fragmentos = []
         _origenes = []
@@ -106,6 +163,7 @@ def construir_indice() -> None:
 
     if not todos_los_chunks:
         logging.warning("[RAG] No se encontraron fragmentos. El índice quedará vacío.")
+        _indice = None
         _indice_faiss = None
         _fragmentos = []
         _origenes = []
@@ -116,17 +174,20 @@ def construir_indice() -> None:
 
     logging.info("[RAG] Generando embeddings para %d fragmentos...", len(textos))
     # batch_size=32 y show_progress_bar=False para mantener salida limpia en producción
-    vectores = modelo_embedding.encode(
+    modelo = _obtener_modelo()
+    vectores = modelo.encode(
         textos,
         batch_size=32,
         show_progress_bar=False,
         convert_to_numpy=True,
+        normalize_embeddings=True,
     ).astype(np.float32)
 
     dimension = vectores.shape[1]
     indice = faiss.IndexFlatL2(dimension)
     indice.add(vectores)
 
+    _indice = indice
     _indice_faiss = indice
     _fragmentos = textos
     _origenes = origenes
@@ -136,7 +197,7 @@ def construir_indice() -> None:
         len(_fragmentos),
         len(set(_origenes)),
     )
-    print(f"Índice FAISS construido con éxito: {len(_fragmentos)} fragmentos vectorizados.")
+    logging.info("Índice FAISS construido con éxito: %d fragmentos vectorizados.", len(_fragmentos))
 
 
 def buscar_en_notas(consulta: str, top_k: int = 3) -> str:
@@ -157,7 +218,8 @@ def buscar_en_notas(consulta: str, top_k: int = 3) -> str:
         Texto formateado con los fragmentos más relevantes y su origen,
         o un mensaje explicativo si el índice está vacío.
     """
-    if _indice_faiss is None or len(_fragmentos) == 0:
+    indice_actual = _indice if _indice is not None else _indice_faiss
+    if indice_actual is None or len(_fragmentos) == 0:
         return (
             "El índice RAG está vacío. Puede que la bóveda no exista, "
             "no contenga archivos .md, o que construir_indice() no se haya ejecutado."
@@ -167,27 +229,37 @@ def buscar_en_notas(consulta: str, top_k: int = 3) -> str:
         return "No se proporcionó una consulta válida para buscar en la bóveda."
 
     try:
-        vector_consulta = modelo_embedding.encode(
+        modelo = _obtener_modelo()
+        vector_consulta = modelo.encode(
             [consulta.strip()],
             convert_to_numpy=True,
+            normalize_embeddings=True,
         ).astype(np.float32)
 
         k = min(top_k, len(_fragmentos))
-        distancias, indices = _indice_faiss.search(vector_consulta, k)
+        distancias, indices = indice_actual.search(vector_consulta, k)
 
         resultados = []
-        for rango, (dist, idx) in enumerate(zip(distancias[0], indices[0]), start=1):
+        for dist, idx in zip(distancias[0], indices[0]):
             if idx < 0 or idx >= len(_fragmentos):
                 continue
-            texto_chunk = _fragmentos[idx]
-            nombre_archivo = _origenes[idx]
+            if dist > 1.2:
+                continue
+            frag = _fragmentos[idx]
+            if isinstance(frag, dict):
+                texto_chunk = frag.get("texto", "")
+                nombre_archivo = frag.get("archivo", "")
+            else:
+                texto_chunk = frag
+                nombre_archivo = _origenes[idx] if idx < len(_origenes) else ""
+            rango = len(resultados) + 1
             resultados.append(
-                f"[Resultado {rango} — {nombre_archivo} | distancia L2: {dist:.4f}]\n"
+                f"[Resultado {rango} — {nombre_archivo}]\n"
                 f"{texto_chunk}"
             )
 
         if not resultados:
-            return "No se encontraron fragmentos relevantes para la consulta."
+            return "No se encontró información relevante en las notas."
 
         return "\n\n---\n\n".join(resultados)
 

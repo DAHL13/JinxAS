@@ -4,6 +4,7 @@ import re
 import sys
 from datetime import datetime
 from config import RUTA_VAULT, TITULO_NOTA_MAX
+from memoria_rag import agregar_nota_al_indice
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -45,6 +46,10 @@ def guardar_nota(titulo: str, contenido: str) -> str:
             # Añadir al final del archivo existente
             with open(ruta_archivo, "a", encoding="utf-8") as f:
                 f.write(f"\n\n---\n**Actualización {ahora}:**\n\n{contenido}\n")
+            try:
+                agregar_nota_al_indice(ruta_archivo, contenido)
+            except Exception as e:
+                logging.error("Error al sincronizar nota en RAG: %s", e)
             return f"Nota '{titulo}' actualizada correctamente en la bóveda ({ahora})."
         else:
             # Crear nota nueva con encabezado Markdown
@@ -53,6 +58,10 @@ def guardar_nota(titulo: str, contenido: str) -> str:
                 f.write(f"*Creada el {ahora}*\n\n")
                 f.write(f"---\n\n")
                 f.write(f"{contenido}\n")
+            try:
+                agregar_nota_al_indice(ruta_archivo, contenido)
+            except Exception as e:
+                logging.error("Error al sincronizar nota en RAG: %s", e)
             return f"Nota '{titulo}' creada correctamente en la bóveda ({ahora})."
 
     except Exception as e:
