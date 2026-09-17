@@ -20,14 +20,14 @@
 
 El proyecto está dividido en **7 archivos**, cada uno con una responsabilidad específica:
 
-### Configuración — `config.py`
+### ⚙️ Configuración — `config.py`
 **Punto único de configuración del proyecto**
 
 - Centraliza modelo de LLM, modelo de Whisper, idioma, tiempos de escucha, voz de TTS, ruta de la bóveda de notas y el `SYSTEM_PROMPT`.
 - Define `MAPA_APLICACIONES`: el *allowlist* de aplicaciones que Jinx tiene permitido abrir.
 - Todos los demás módulos importan sus valores desde aquí — no hay configuración duplicada ni hardcodeada en otros archivos.
 
-### Módulo 1 — Percepción · `percepcion.py`
+### 👂 Módulo 1 — Percepción · `percepcion.py`
 **Wake Word ultraligero + Speech-to-Text (STT) con Whisper local**
 
 - **Wake Word ("Jinx")**: Modo Centinela con Whisper tiny.en de ultrabajo consumo para escucha pasiva continua 24/7 en segundo plano, detectando la palabra de activación o variantes fonéticas antes de activar el modelo principal Whisper.
@@ -37,7 +37,7 @@ El proyecto está dividido en **7 archivos**, cada uno con una responsabilidad e
 - Aplica un `initial_prompt` con vocabulario técnico para mejorar precisión en español.
 - Limpia el texto transcrito eliminando artefactos y espacios extra.
 
-### Módulo 2 — Razonamiento · `cerebro.py`
+### 🧠 Módulo 2 — Razonamiento · `cerebro.py`
 **LLM local con Ollama / Qwen 2.5 3B — Tool Calling nativo**
 
 - Define `ESQUEMAS_HERRAMIENTAS`: los 5 tools disponibles para el modelo, declarados con JSON Schema (no etiquetas de texto).
@@ -55,14 +55,14 @@ El proyecto está dividido en **7 archivos**, cada uno con una responsabilidad e
 | `obtener_clima` | Consulta estrictamente el clima exterior y la temperatura ambiente en Tehuacán |
 | `consultar_boveda(consulta)` | Busca información semántica en la bóveda usando el índice RAG (FAISS) |
 
-### Módulo 3 — Voz · `voz.py`
+### 🔊 Módulo 3 — Voz · `voz.py`
 **Text-to-Speech (TTS) con Edge-TTS**
 
 - Usa **Edge-TTS** (voz configurable en `config.py`, por defecto `es-MX-DaliaNeural`) para sintetizar voz en español de forma local.
 - Genera un **archivo temporal único por reproducción** (`tempfile`), evitando colisiones si el proceso se ejecuta más de una vez.
 - Reproduce el audio con `pygame.mixer` de forma bloqueante y limpia el archivo temporal al terminar.
 
-### Módulo 4 — Herramientas · `herramientas.py`
+### 🧰 Módulo 4 — Herramientas · `herramientas.py`
 **Acceso al sistema operativo, con seguridad como prioridad**
 
 - `obtener_estado_sistema()`: lee CPU, RAM y disco con `psutil` y retorna un resumen formateado.
@@ -70,13 +70,13 @@ El proyecto está dividido en **7 archivos**, cada uno con una responsabilidad e
 - `abrir_aplicacion(nombre_app)`: **valida contra un allowlist estricto** (`MAPA_APLICACIONES` en `config.py`) antes de ejecutar nada. Si la aplicación no está en la lista, se rechaza — no hay fallback de ejecución arbitraria. Usa `subprocess.Popen([...], shell=False)`, nunca `os.system` ni `shell=True`.
 - `obtener_clima()`: consulta el clima exterior y temperatura actual en Tehuacán mediante la API de wttr.in con validación de errores.
 
-### Módulo 5 — Memoria · `memoria.py`
+### 🗒️ Módulo 5 — Memoria · `memoria.py`
 **Bóveda de notas Markdown (compatible con Obsidian)**
 
 - `guardar_nota(titulo, contenido)`: crea o actualiza notas `.md` en `Boveda_Obsidian/`, con timestamp automático en cada actualización. Los nombres de archivo se normalizan y truncan a una longitud segura. Sincroniza el índice RAG en tiempo real tras cada escritura.
 - `buscar_nota(palabra_clave)`: escanea todos los `.md` y retorna extractos de las notas que coinciden en título o contenido.
 
-### Módulo 6 — Memoria RAG · `memoria_rag.py`
+### 🔎 Módulo 6 — Memoria RAG · `memoria_rag.py`
 **Búsqueda semántica local sobre la bóveda (FAISS + sentence-transformers)**
 
 - Usa el modelo `paraphrase-multilingual-MiniLM-L12-v2` con carga perezosa.
@@ -84,7 +84,7 @@ El proyecto está dividido en **7 archivos**, cada uno con una responsabilidad e
 - `buscar_en_notas(consulta, top_k)`: vectoriza la consulta y devuelve los fragmentos más cercanos, filtrando por `UMBRAL_DISTANCIA_RAG`.
 - `agregar_nota_al_indice(ruta, contenido)`: sincroniza el índice en memoria cuando se crea o actualiza una nota durante la sesión.
 
-### Orquestador — `main.py`
+### 🎛️ Orquestador — `main.py`
 Ciclo principal del asistente, con **memoria de conversación persistente**:
 
 1. Mantiene un historial de conversación (`contexto`) que **vive durante toda la sesión**, no solo un turno — Jinx recuerda lo que hablaron antes.
@@ -113,7 +113,7 @@ Ciclo principal del asistente, con **memoria de conversación persistente**:
 
 ## 🚀 Instalación y ejecución
 
-### Prerrequisitos
+### ✅ Prerrequisitos
 
 - Python 3.12+
 - [Ollama](https://ollama.com/) instalado y corriendo con el modelo `qwen2.5:3b`:
@@ -121,7 +121,7 @@ Ciclo principal del asistente, con **memoria de conversación persistente**:
   ollama pull qwen2.5:3b
   ```
 
-### Instalar dependencias
+### 📦 Instalar dependencias
 
 ```bash
 python -m venv venv
@@ -129,7 +129,7 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-### Ejecutar el asistente
+### ▶️ Ejecutar el asistente
 
 ```bash
 python main.py
