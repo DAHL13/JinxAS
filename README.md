@@ -10,7 +10,7 @@
 ![Offline](https://img.shields.io/badge/100%25-Local%20%2F%20Offline-2EA043)
 ![License](https://img.shields.io/badge/Uso-Personal%20%2F%20Aprendizaje-lightgrey)
 
-> **Jinx no es un wrapper de una API en la nube — es un asistente de voz que piensa, recuerda y actúa completamente en tu máquina.** Reconoce su propia palabra de activación, mantiene el hilo de la conversación, ejecuta acciones reales en tu sistema con un modelo de permisos explícito, y puede consultar tus propios apuntes de Obsidian por significado, no solo por palabra clave — todo corriendo en un Ryzen 5 sin GPU dedicada.
+> ⚡ **Jinx no es un wrapper de una API en la nube — es un asistente de voz que piensa, recuerda y actúa completamente en tu máquina.** 🧠 Reconoce su propia palabra de activación, 🗣️ mantiene el hilo de la conversación, 🔒 ejecuta acciones reales en tu sistema con un modelo de permisos explícito, y 📚 puede consultar tus propios apuntes de Obsidian por significado, no solo por palabra clave — todo corriendo en un Ryzen 5 sin GPU dedicada. 💪
 
 > **Jinx** es un asistente de voz completamente local, modular y sin dependencias de la nube. Escucha tu voz, razona con un LLM local (Qwen 2.5 3B vía Ollama) usando **tool calling nativo**, ejecuta acciones en tu sistema de forma segura, recuerda la conversación mientras hablas con él, consulta tus notas de Obsidian por significado gracias a un motor RAG propio, y te responde con voz sintetizada en tiempo real.
 
