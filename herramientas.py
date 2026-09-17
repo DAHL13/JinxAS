@@ -5,6 +5,7 @@ import psutil
 import requests
 import config
 from config import MAPA_APLICACIONES
+from memoria_rag import buscar_en_notas
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -128,11 +129,27 @@ def obtener_clima() -> str:
     try:
         respuesta = requests.get(config.URL_CLIMA, timeout=5)
         if respuesta.status_code == 200:
-            return respuesta.text.strip()
+            texto = respuesta.text.strip()
+            texto_lower = texto.lower()
+            if not texto or "unknown location" in texto_lower or "404" in texto:
+                return "Error: No se pudo obtener el clima en este momento."
+            return texto
         return "Error: No se pudo obtener el clima en este momento."
     except requests.RequestException as e:
         logging.error("Error de red al consultar el clima: %s", e)
         return "Error: No se pudo obtener el clima en este momento."
+
+
+def consultar_boveda(consulta: str) -> str:
+    """
+    Busca información, conceptos o código en los apuntes personales del usuario
+    almacenados en la bóveda de Obsidian, usando el índice RAG local (FAISS).
+    """
+    try:
+        return buscar_en_notas(consulta)
+    except Exception as e:
+        logging.error("[RAG] Error al consultar la bóveda: %s", e)
+        return f"Error al consultar la bóveda de Obsidian: {e}"
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")

@@ -10,8 +10,10 @@ from herramientas import (
     obtener_temperatura,
     abrir_aplicacion,
     obtener_clima,
+    consultar_boveda,
 )
 from memoria import guardar_nota, buscar_nota
+from memoria_rag import construir_indice
 from config import (
     MODELO_WHISPER,
     PALABRA_ACTIVACION,
@@ -33,6 +35,7 @@ FUNCIONES_DISPONIBLES = {
     "guardar_nota": guardar_nota,
     "buscar_nota": buscar_nota,
     "obtener_clima": obtener_clima,
+    "consultar_boveda": consultar_boveda,
 }
 
 def _extraer_llamada(tool_call) -> tuple:
@@ -57,6 +60,11 @@ def _extraer_llamada(tool_call) -> tuple:
 def iniciar_asistente():
     logging.info("Jinx Asistente - asistente de voz local")
     logging.info("Di 'salir', 'cancelar', 'apagar', 'detener' o presiona Ctrl+C para salir.")
+
+    # ── Fase 4: construir el índice RAG una sola vez al arrancar ──
+    logging.info("[RAG] Cargando bóveda de Obsidian en memoria...")
+    construir_indice()
+    logging.info("[RAG] Bóveda lista para consultas.")
 
     contexto = [{"role": "system", "content": SYSTEM_PROMPT}]
 
@@ -100,10 +108,10 @@ def iniciar_asistente():
                 contexto.append({"role": "user", "content": texto_reconocido})
 
                 # Recortar el historial manteniendo siempre el mensaje de sistema (índice 0)
-                # y las últimas 8 entradas del historial de conversación.
+                # y las últimas 16 entradas del historial de conversación.
                 # Si el punto de corte cae sobre un mensaje 'tool', se retrocede hasta incluir
                 # el 'assistant' con tool_calls que lo originó, para no romper el par.
-                cola = contexto[1:][-8:]
+                cola = contexto[1:][-16:]
                 while cola and cola[0].get("role") == "tool":
                     cola = cola[1:]
                 contexto = [contexto[0]] + cola

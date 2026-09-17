@@ -23,7 +23,7 @@ ESQUEMAS_HERRAMIENTAS = [
         "type": "function",
         "function": {
             "name": "obtener_temperatura",
-            "description": "Intenta leer la temperatura de los sensores del sistema o informa el uso de CPU.",
+            "description": "Lee estrictamente la temperatura del hardware del PC (CPU/GPU). NO usar para el clima exterior.",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -89,10 +89,31 @@ ESQUEMAS_HERRAMIENTAS = [
         "type": "function",
         "function": {
             "name": "obtener_clima",
-            "description": "Obtiene el clima actual y la temperatura en Tehuacán.",
+            "description": "Consulta estrictamente el clima exterior y la temperatura ambiente en Tehuacán.",
             "parameters": {
                 "type": "object",
                 "properties": {},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "consultar_boveda",
+            "description": (
+                "Busca información, conceptos o código en los apuntes personales del usuario "
+                "en Obsidian. Úsala cuando el usuario pregunte por sus proyectos, clases o "
+                "conocimientos documentados."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "consulta": {
+                        "type": "string",
+                        "description": "Término, pregunta o concepto a buscar en la bóveda.",
+                    }
+                },
+                "required": ["consulta"],
             },
         },
     },

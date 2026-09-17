@@ -18,7 +18,7 @@ El proyecto está dividido en **6 archivos**, cada uno con una responsabilidad e
 ### Módulo 1 — Percepción · `percepcion.py`
 **Wake Word ultraligero + Speech-to-Text (STT) con Whisper local**
 
-- **Wake Word ("Jinx")**: Escucha pasiva continua 24/7 de ultrabajo consumo de CPU (offline con Vosk/OpenWakeWord), liberando completamente el micrófono antes de activar Whisper.
+- **Wake Word ("Jinx")**: Modo Centinela con Whisper tiny.en de ultrabajo consumo para escucha pasiva continua 24/7 en segundo plano, detectando la palabra de activación o variantes fonéticas antes de activar el modelo principal Whisper.
 - Captura audio del micrófono usando `SpeechRecognition` + `PyAudio`.
 - Calibra automáticamente el ruido ambiental antes de escuchar.
 - Transcribe el audio con **OpenAI Whisper** (modelo y parámetros definidos en `config.py`).
@@ -40,6 +40,7 @@ El proyecto está dividido en **6 archivos**, cada uno con una responsabilidad e
 | `abrir_aplicacion(nombre_app)` | Abre una aplicación permitida |
 | `guardar_nota(titulo, contenido)` | Guarda o actualiza una nota en la bóveda |
 | `buscar_nota(palabra_clave)` | Busca notas por palabra clave |
+| `obtener_clima` | Consulta estrictamente el clima exterior y la temperatura ambiente en Tehuacán |
 
 ### Módulo 3 — Voz · `voz.py`
 **Text-to-Speech (TTS) con Edge-TTS**
@@ -54,6 +55,7 @@ El proyecto está dividido en **6 archivos**, cada uno con una responsabilidad e
 - `obtener_estado_sistema()`: lee CPU, RAM y disco con `psutil` y retorna un resumen formateado.
 - `obtener_temperatura()`: intenta leer sensores vía `psutil` o PowerShell/WMI; si no hay acceso, mide el uso de CPU de forma independiente como referencia.
 - `abrir_aplicacion(nombre_app)`: **valida contra un allowlist estricto** (`MAPA_APLICACIONES` en `config.py`) antes de ejecutar nada. Si la aplicación no está en la lista, se rechaza — no hay fallback de ejecución arbitraria. Usa `subprocess.Popen([...], shell=False)`, nunca `os.system` ni `shell=True`.
+- `obtener_clima()`: consulta el clima exterior y temperatura actual en Tehuacán mediante la API de wttr.in con validación de errores.
 
 ### Módulo 5 — Memoria · `memoria.py`
 **Bóveda de notas Markdown (compatible con Obsidian)**
@@ -138,6 +140,7 @@ JinxAS/
 |---|---|
 | *"¿Cómo está la RAM?"* | Consulta uso de CPU, RAM y disco |
 | *"¿Está caliente la compu?"* | Consulta temperatura del sistema |
+| *"¿Cómo está el clima?"* | Consulta el clima exterior y temperatura en Tehuacán |
 | *"Abre la calculadora"* | Lanza la calculadora (si está en el allowlist) |
 | *"Abre VS Code"* | Ejecuta VS Code (si está en el allowlist) |
 | *"Recuerda que tengo dentista el jueves"* | Guarda nota en la bóveda |
@@ -159,8 +162,8 @@ JinxAS/
 
 - ✅ **Fase 1** — Memoria de conversación persistente durante la sesión.
 - ✅ **Fase 2** — Tool calling nativo, configuración centralizada, logging.
-- 🚧 **Fase 3** — En desarrollo: Wake Word ("Jinx") ultraligero integrado; en progreso: recordatorios/calendario, clima, control de música, uso automático de la bóveda como contexto.
-- ⏳ **Fase 4** — Planeada: proactividad, interfaz visual simple, memoria semántica (RAG) sobre la bóveda.
+- ✅ **Fase 3** — Completada: Wake Word ("Jinx") con Modo Centinela (Whisper tiny.en), consulta de clima exterior en Tehuacán (wttr.in) y memoria de contexto ampliada.
+- ⏳ **Fase 4** — Planeada: proactividad, recordatorios/calendario, control de música, interfaz visual simple, memoria semántica (RAG) sobre la bóveda.
 
 ---
 
