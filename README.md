@@ -6,7 +6,7 @@
 
 ## 🏗️ Arquitectura Modular
 
-El proyecto está dividido en **6 archivos**, cada uno con una responsabilidad específica:
+El proyecto está dividido en **7 archivos**, cada uno con una responsabilidad específica:
 
 ### Configuración — `config.py`
 **Punto único de configuración del proyecto**
@@ -41,6 +41,7 @@ El proyecto está dividido en **6 archivos**, cada uno con una responsabilidad e
 | `guardar_nota(titulo, contenido)` | Guarda o actualiza una nota en la bóveda |
 | `buscar_nota(palabra_clave)` | Busca notas por palabra clave |
 | `obtener_clima` | Consulta estrictamente el clima exterior y la temperatura ambiente en Tehuacán |
+| `consultar_boveda(consulta)` | Busca información semántica en la bóveda usando el índice RAG (FAISS) |
 
 ### Módulo 3 — Voz · `voz.py`
 **Text-to-Speech (TTS) con Edge-TTS**
@@ -60,8 +61,16 @@ El proyecto está dividido en **6 archivos**, cada uno con una responsabilidad e
 ### Módulo 5 — Memoria · `memoria.py`
 **Bóveda de notas Markdown (compatible con Obsidian)**
 
-- `guardar_nota(titulo, contenido)`: crea o actualiza notas `.md` en `Boveda_Obsidian/`, con timestamp automático en cada actualización. Los nombres de archivo se normalizan y truncan a una longitud segura.
+- `guardar_nota(titulo, contenido)`: crea o actualiza notas `.md` en `Boveda_Obsidian/`, con timestamp automático en cada actualización. Los nombres de archivo se normalizan y truncan a una longitud segura. Sincroniza el índice RAG en tiempo real tras cada escritura.
 - `buscar_nota(palabra_clave)`: escanea todos los `.md` y retorna extractos de las notas que coinciden en título o contenido.
+
+### Módulo 6 — Memoria RAG · `memoria_rag.py`
+**Búsqueda semántica local sobre la bóveda (FAISS + sentence-transformers)**
+
+- Usa el modelo `paraphrase-multilingual-MiniLM-L12-v2` con carga perezosa.
+- `construir_indice()`: recorre recursivamente la bóveda, divide cada nota en chunks (~700 caracteres con solapamiento) y construye un índice FAISS `IndexFlatL2`.
+- `buscar_en_notas(consulta, top_k)`: vectoriza la consulta y devuelve los fragmentos más cercanos, filtrando por `UMBRAL_DISTANCIA_RAG`.
+- `agregar_nota_al_indice(ruta, contenido)`: sincroniza el índice en memoria cuando se crea o actualiza una nota durante la sesión.
 
 ### Orquestador — `main.py`
 Ciclo principal del asistente, con **memoria de conversación persistente**:
@@ -125,8 +134,9 @@ JinxAS/
 ├── percepcion.py     # Módulo STT: escucha y transcripción con Whisper
 ├── cerebro.py        # Módulo LLM: tool calling nativo con Ollama
 ├── voz.py            # Módulo TTS: síntesis de voz con Edge-TTS
-├── herramientas.py   # Herramientas del sistema (CPU, temperatura, abrir apps con allowlist)
+├── herramientas.py   # Herramientas del sistema (CPU, temperatura, abrir apps, clima, consulta RAG)
 ├── memoria.py        # Módulo de memoria con bóveda Obsidian
+├── memoria_rag.py    # Motor RAG local: indexación FAISS + búsqueda semántica
 ├── requirements.txt  # Dependencias del proyecto
 ├── .gitignore        # Exclusiones de Git
 └── Boveda_Obsidian/  # Notas guardadas por Jinx (excluida de Git)
@@ -163,7 +173,8 @@ JinxAS/
 - ✅ **Fase 1** — Memoria de conversación persistente durante la sesión.
 - ✅ **Fase 2** — Tool calling nativo, configuración centralizada, logging.
 - ✅ **Fase 3** — Completada: Wake Word ("Jinx") con Modo Centinela (Whisper tiny.en), consulta de clima exterior en Tehuacán (wttr.in) y memoria de contexto ampliada.
-- ⏳ **Fase 4** — Planeada: proactividad, recordatorios/calendario, control de música, interfaz visual simple, memoria semántica (RAG) sobre la bóveda.
+- ✅ **Fase 4** — Completada: memoria semántica (RAG) sobre la bóveda con FAISS + sentence-transformers, búsqueda por similitud y sincronización en tiempo real.
+- ⏳ **Fase 5** — Planeada: proactividad, recordatorios/calendario, control de música, interfaz visual simple.
 
 ---
 

@@ -1,71 +1,15 @@
 import logging
-import os
-import re
 import subprocess
 import sys
-from datetime import datetime
 import psutil
 import requests
 import config
-from config import MAPA_APLICACIONES, RUTA_VAULT, TITULO_NOTA_MAX
-from memoria_rag import buscar_en_notas, agregar_nota_al_indice
+from config import MAPA_APLICACIONES
+from memoria_rag import buscar_en_notas
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
-
-def _normalizar_nombre_archivo(titulo: str) -> str:
-    """
-    Convierte un título a un nombre de archivo válido en formato .md.
-    Elimina caracteres no permitidos en nombres de archivo de Windows.
-    """
-    nombre = titulo.strip()
-    nombre = re.sub(r'[\\/:*?"<>|]', '', nombre)
-    nombre = re.sub(r'\s+', ' ', nombre)
-    nombre = nombre[:TITULO_NOTA_MAX]
-    if not nombre.lower().endswith('.md'):
-        nombre = nombre + '.md'
-    return nombre
-
-def guardar_nota(titulo: str, contenido: str) -> str:
-    """
-    Guarda o actualiza una nota Markdown en la bóveda de Obsidian
-    y sincroniza en tiempo real el índice RAG.
-    """
-    if not titulo or not titulo.strip():
-        return "No se proporcionó un título para la nota."
-
-    os.makedirs(RUTA_VAULT, exist_ok=True)
-    nombre_archivo = _normalizar_nombre_archivo(titulo)
-    ruta_completa = os.path.join(RUTA_VAULT, nombre_archivo)
-    ahora = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    try:
-        if os.path.exists(ruta_completa):
-            # Añadir al final del archivo existente
-            with open(ruta_completa, "a", encoding="utf-8") as f:
-                f.write(f"\n\n---\n**Actualización {ahora}:**\n\n{contenido}\n")
-            try:
-                agregar_nota_al_indice(ruta_completa, contenido)
-            except Exception as e:
-                logging.error("Error al sincronizar nota en RAG: %s", e)
-            return f"Nota '{titulo}' actualizada correctamente en la bóveda ({ahora})."
-        else:
-            # Crear nota nueva con encabezado Markdown
-            with open(ruta_completa, "w", encoding="utf-8") as f:
-                f.write(f"# {titulo}\n\n")
-                f.write(f"*Creada el {ahora}*\n\n")
-                f.write(f"---\n\n")
-                f.write(f"{contenido}\n")
-            try:
-                agregar_nota_al_indice(ruta_completa, contenido)
-            except Exception as e:
-                logging.error("Error al sincronizar nota en RAG: %s", e)
-            return f"Nota '{titulo}' creada correctamente en la bóveda ({ahora})."
-
-    except Exception as e:
-        logging.error("Error al guardar la nota '%s': %s", titulo, e)
-        return f"Error al guardar la nota '{titulo}': {e}"
 
 def obtener_estado_sistema() -> str:
     """

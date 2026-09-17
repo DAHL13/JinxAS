@@ -11,6 +11,7 @@ PHRASE_TIME_LIMIT = 8
 VOZ_TTS = "es-MX-DaliaNeural"
 RUTA_VAULT = os.path.join(_BASE_DIR, "Boveda_Obsidian")
 TITULO_NOTA_MAX = 80
+UMBRAL_DISTANCIA_RAG = 1.2
 PALABRA_ACTIVACION = "jinx"
 MODELO_WAKEWORD = "tiny.en"
 VARIANTES_WAKEWORD = ["jinx", "jinks", "sphinx"]
