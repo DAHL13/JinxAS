@@ -64,3 +64,4 @@ yarl==1.24.5
 aiohappyeyeballs==2.7.1
 sentence-transformers==6.0.1
 faiss-cpu==1.15.1
+pywebview

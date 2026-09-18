@@ -1,7 +1,9 @@
 import json
 import logging
 import sys
+import threading
 import time
+import webview
 from percepcion import escuchar_y_transcribir, esperar_palabra_activacion
 from cerebro import procesar_pensamiento
 from voz import reproducir_voz
@@ -14,6 +16,7 @@ from herramientas import (
 )
 from memoria import guardar_nota, buscar_nota
 from memoria_rag import construir_indice
+from interfaz import ControladorPanel
 from config import (
     MODELO_WHISPER,
     PALABRA_ACTIVACION,
@@ -27,6 +30,10 @@ if sys.platform == "win32":
     sys.stderr.reconfigure(encoding="utf-8")
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
+
+# Instancia global del controlador de UI.
+# panel.ventana se asigna desde __main__ después de create_window().
+panel = ControladorPanel()
 
 FUNCIONES_DISPONIBLES = {
     "obtener_estado_sistema": obtener_estado_sistema,
@@ -57,7 +64,7 @@ def _extraer_llamada(tool_call) -> tuple:
         argumentos = {}
     return nombre, argumentos
 
-def iniciar_asistente():
+def bucle_voz_secundario():
     logging.info("Jinx Asistente - asistente de voz local")
     logging.info("Di 'salir', 'cancelar', 'apagar', 'detener' o presiona Ctrl+C para salir.")
 
@@ -70,15 +77,22 @@ def iniciar_asistente():
 
     while True:
         try:
+            # ── Estado 1: Centinela — esperando wake word ──
+            panel.actualizar_estado(1)
             logging.info("Esperando palabra de activación 'Jinx'...")
             activado = esperar_palabra_activacion(PALABRA_ACTIVACION)
             if not activado:
                 continue
 
+            # Capturamos el tiempo de inicio del turno completo
+            inicio_turno = time.time()
+
             logging.info("¡Despierta!")
             reproducir_voz("Dime")
             time.sleep(0.3)
 
+            # ── Estado 2: Transcripción — Whisper procesando audio ──
+            panel.actualizar_estado(2)
             logging.info("Escuchando tu comando...")
             texto_usuario = escuchar_y_transcribir(
                 modelo=MODELO_WHISPER,
@@ -104,6 +118,8 @@ def iniciar_asistente():
                     time.sleep(0.8)
                     continue
 
+                # ── Estado 3: El Núcleo — llamada a Ollama/herramientas ──
+                panel.actualizar_estado(3)
                 logging.info('Procesando respuesta para: "%s"...', texto_reconocido)
                 contexto.append({"role": "user", "content": texto_reconocido})
 
@@ -147,9 +163,16 @@ def iniciar_asistente():
 
                 logging.info("Respuesta Jinx: %s", texto_final)
 
+                # ── Estado 4: Síntesis — TTS generando y reproduciendo audio ──
+                panel.actualizar_estado(4)
                 logging.info("Jinx respondiendo con voz...")
                 reproducir_voz(texto_final)
                 time.sleep(0.8)  # Purga el buffer del micrófono y evita captura de eco
+
+                # ── Estado 5: Completado — turno finalizado ──
+                latencia_ms = int((time.time() - inicio_turno) * 1000)
+                panel.actualizar_estado(5)
+                panel.actualizar_respuesta(texto_final, latencia_ms)
             else:
                 logging.info("No se detectó ninguna instrucción clara. Reintentando...")
                 continue
@@ -162,7 +185,15 @@ def iniciar_asistente():
             time.sleep(2)
 
 if __name__ == "__main__":
-    try:
-        iniciar_asistente()
-    except KeyboardInterrupt:
-        logging.info("Cerrando asistente Jinx...")
+    hilo_voz = threading.Thread(target=bucle_voz_secundario, daemon=True)
+    hilo_voz.start()
+
+    ventana = webview.create_window(
+        'SENTINEL // PIPELINE GRAPH',
+        'panel_sentinel.html',
+        width=1200,
+        height=800,
+    )
+    # Conecta el controlador de UI con la ventana nativa
+    panel.ventana = ventana
+    webview.start()
