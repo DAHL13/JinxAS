@@ -20,8 +20,25 @@ if sys.platform == "win32":
     sys.stderr.reconfigure(encoding="utf-8")
 
 _MODELO_CENTINELA = None
+_MODELO_COMANDO = None
 
-def esperar_palabra_activacion(palabra_clave: str = PALABRA_ACTIVACION, variaciones: list = None) -> bool:
+def _obtener_modelo_comando(nombre_modelo: str = "small"):
+    """
+    Obtiene el modelo Whisper principal para comandos de voz desde la caché en memoria.
+    Se inicializa de forma perezosa una sola vez si aún no ha sido cargado.
+    """
+    global _MODELO_COMANDO
+    if _MODELO_COMANDO is None:
+        logging.info("Cargando modelo principal de Whisper (%s)...", nombre_modelo)
+        _MODELO_COMANDO = whisper.load_model(nombre_modelo)
+    return _MODELO_COMANDO
+
+def esperar_palabra_activacion(
+    palabra_clave: str = PALABRA_ACTIVACION,
+    variaciones: list = None,
+    evento_apagar=None,
+    panel=None,
+) -> bool:
     """
     Modo Centinela: Escucha pasivamente en segundo plano con Whisper (modelo tiny.en)
     hasta detectar la palabra clave de activación 'Jinx' o sus variantes fonéticas.
@@ -45,10 +62,14 @@ def esperar_palabra_activacion(palabra_clave: str = PALABRA_ACTIVACION, variacio
     try:
         with sr.Microphone() as source:
             logging.info("Calibrando ruido ambiental para modo centinela...")
+            if panel: panel.actualizar_satelite(1, 1, "Centinela", "Calibrando ruido...")
             recognizer.adjust_for_ambient_noise(source, duration=1)
             logging.info("Centinela activo. Esperando palabra de activación...")
+            if panel:
+                panel.actualizar_satelite(1, 1, "Centinela Activo", "Esperando 'Jinx'...")
+                panel.actualizar_satelite(1, 2, "Umbral Energía", f"{recognizer.energy_threshold:.2f} SNR")
 
-            while True:
+            while not (evento_apagar and evento_apagar.is_set()):
                 try:
                     # Captura ráfagas cortas con VAD nativo para esperar en silencio sin saturar CPU
                     audio = recognizer.listen(source, timeout=1, phrase_time_limit=3)
@@ -56,6 +77,9 @@ def esperar_palabra_activacion(palabra_clave: str = PALABRA_ACTIVACION, variacio
                     continue
                 except sr.UnknownValueError:
                     continue
+
+                if evento_apagar and evento_apagar.is_set():
+                    return False
 
                 try:
                     # Convertir el audio capturado a numpy float32 a 16kHz en memoria
@@ -88,6 +112,7 @@ def esperar_palabra_activacion(palabra_clave: str = PALABRA_ACTIVACION, variacio
 
                     if coincidencia:
                         logging.info("¡Palabra de activación detectada con éxito! ('%s')", texto_detectado)
+                        if panel: panel.actualizar_satelite(1, 1, "Micrófono", "Detectado: ¡Jinx!")
                         return True
 
                 except sr.UnknownValueError:
@@ -95,6 +120,8 @@ def esperar_palabra_activacion(palabra_clave: str = PALABRA_ACTIVACION, variacio
                 except Exception as e:
                     logging.debug("Ráfaga de audio no procesada o descartada: %s", e)
                     continue
+
+            return False
 
     except KeyboardInterrupt:
         logging.info("Espera de palabra de activación interrumpida.")
@@ -129,13 +156,18 @@ def escuchar_y_transcribir(
     modelo=MODELO_WHISPER,
     tiempo_maximo=TIEMPO_MAXIMO_ESCUCHA,
     phrase_time_limit=PHRASE_TIME_LIMIT,
-    initial_prompt=PROMPT_INICIAL_WHISPER
+    initial_prompt=PROMPT_INICIAL_WHISPER,
+    evento_apagar=None,
+    panel=None,
 ):
     """
-    Inicializa el micrófono, calibra el ruido ambiental y escucha por un máximo de tiempo_maximo segundos.
-    Transcribe el audio usando el modelo Whisper local optimizado en español ('es')
-    con un prompt inicial de contexto técnico.
+    Inicializa el micrófono y escucha por un máximo de tiempo_maximo segundos.
+    Transcribe el audio usando el modelo Whisper en caché (fp16=False) sin recalibrar
+    el ruido ambiental (ya calibrado previamente por el centinela).
     """
+    if evento_apagar and evento_apagar.is_set():
+        return None
+
     recognizer = sr.Recognizer()
 
     # Ajustes finos de reconocimiento
@@ -148,17 +180,16 @@ def escuchar_y_transcribir(
 
     try:
         with sr.Microphone() as source:
-            logging.info("Calibrando ruido ambiental... Por favor guarda silencio un momento.")
-            recognizer.adjust_for_ambient_noise(source, duration=1.0)
-            logging.info("Umbral de energía establecido en: %.2f", recognizer.energy_threshold)
-
             logging.info("Escuchando... (habla ahora, máximo %s segundos)", phrase_time_limit)
+            if panel:
+                panel.actualizar_satelite(2, 1, "Micrófono", "Escuchando (8s)...")
+                panel.actualizar_satelite(2, 2, "Modelo Whisper", "small (en caché)")
             try:
                 # Escuchar con límite de tiempo y tiempo máximo de frase
                 audio = recognizer.listen(
                     source,
                     timeout=tiempo_maximo,
-                    phrase_time_limit=phrase_time_limit
+                    phrase_time_limit=phrase_time_limit,
                 )
                 logging.info("Audio capturado exitosamente. Procesando con Whisper...")
 
@@ -174,26 +205,33 @@ def escuchar_y_transcribir(
         logging.error("Error al inicializar el micrófono: %s", e)
         return None
 
-    # Transcripción con Whisper local a través de SpeechRecognition
+    if evento_apagar and evento_apagar.is_set():
+        return None
+
+    # Transcripción directa con el modelo Whisper en caché (ultra-rápida, fp16=False)
     try:
-        logging.info("Transcribiendo audio con Whisper (modelo '%s', idioma '%s')...", modelo, IDIOMA_WHISPER)
-        texto_transcrito = recognizer.recognize_whisper(
-            audio,
-            model=modelo,
-            language=IDIOMA_WHISPER,
-            initial_prompt=initial_prompt
+        nombre_modelo = modelo if isinstance(modelo, str) else "small"
+        modelo_whisper = _obtener_modelo_comando(nombre_modelo)
+
+        raw_data = audio.get_raw_data(convert_rate=16000, convert_width=2)
+        audio_np = np.frombuffer(raw_data, dtype=np.int16).flatten().astype(np.float32) / 32768.0
+
+        logging.info("Transcribiendo audio directamente con Whisper (fp16=False)...")
+        if panel:
+            panel.actualizar_satelite(2, 1, "Whisper Small", "Transcribiendo...")
+            panel.actualizar_satelite(2, 2, "Modelo Whisper", "small (en caché)")
+        resultado = modelo_whisper.transcribe(
+            audio_np,
+            language="es",
+            fp16=False,
+            initial_prompt=initial_prompt,
         )
 
+        texto_transcrito = resultado.get("text", "")
         texto_limpio = limpiar_texto_transcrito(texto_transcrito)
         logging.info('Texto reconocido: "%s"', texto_limpio)
         return texto_limpio if texto_limpio else None
 
-    except sr.UnknownValueError:
-        logging.info("Whisper no pudo entender el audio.")
-        return None
-    except sr.RequestError as e:
-        logging.error("Error en el motor de Whisper: %s", e)
-        return None
     except Exception as e:
         logging.error("Error inesperado durante la transcripción: %s", e)
         return None

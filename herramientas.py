@@ -1,4 +1,6 @@
 import logging
+import os
+import shutil
 import subprocess
 import sys
 import psutil
@@ -100,26 +102,32 @@ def obtener_temperatura() -> str:
         f"Sin embargo, el procesador está al {cpu_uso:.1f}% de uso, operando con normalidad."
     )
 
-def abrir_aplicacion(nombre_app: str) -> str:
+def abrir_aplicacion(nombre_app: str = "", app_name: str = "") -> str:
     """
-    Abre una aplicación en Windows solo si está en la lista permitida (allowlist).
-    No ejecuta nombres arbitrarios ni usa shell=True.
+    Abre una aplicación en Windows solo si está en la lista permitida (allowlist)
+    y el ejecutable existe en el PATH o en disco, usando os.startfile de forma nativa sin shell.
     """
-    if not nombre_app:
+    nombre = (app_name or nombre_app or "").strip()
+    if not nombre:
         return "No se especificó ninguna aplicación para abrir."
 
-    app_limpia = nombre_app.strip().lower()
+    app_limpia = nombre.lower()
 
     if app_limpia not in MAPA_APLICACIONES:
-        return f"La aplicación '{nombre_app}' no está permitida."
+        return f"La aplicación '{nombre}' no está permitida."
 
     ejecutable = MAPA_APLICACIONES[app_limpia]
+    ruta_ejecutable = shutil.which(ejecutable) or (ejecutable if os.path.exists(ejecutable) else None)
+
+    if not ruta_ejecutable:
+        return "Error: La aplicación no se encuentra instalada o la ruta es inválida."
+
     try:
-        subprocess.Popen(["cmd", "/c", "start", "", ejecutable], shell=False)
-        return f"Abriendo {nombre_app} correctamente."
+        os.startfile(ruta_ejecutable)
+        return f"Abriendo {nombre} correctamente."
     except Exception as e:
-        logging.error("Error al intentar ejecutar '%s': %s", nombre_app, e)
-        return f"Error al intentar ejecutar '{nombre_app}': {e}"
+        logging.error("Error al intentar ejecutar '%s': %s", nombre, e)
+        return f"Error al intentar ejecutar '{nombre}': {e}"
 
 def obtener_clima() -> str:
     """

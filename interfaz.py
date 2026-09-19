@@ -6,6 +6,7 @@ Expone ControladorPanel, que traduce llamadas Python a JavaScript
 usando ventana.evaluate_js(). Los métodos son seguros para ser llamados
 desde el hilo de voz secundario sin bloquear ni lanzar excepciones.
 """
+import json
 import logging
 
 
@@ -36,13 +37,29 @@ class ControladorPanel:
         Paso 4 → Síntesis   (hub-4)
         Paso 5 → Completado (terminalNode)
         """
-        self._eval(f"window.jinxUI.setEstado({paso})")
+        self._eval(f"if (window.jinxUI) {{ window.jinxUI.setEstado({paso}); }}")
 
     def actualizar_respuesta(self, texto: str, latencia: int) -> None:
         """Actualiza el texto de la última respuesta y la latencia en ms."""
-        # Escapar comillas simples para no romper el JS inline
-        texto_escapado = texto.replace("\\", "\\\\").replace("'", "\\'")
-        self._eval(f"window.jinxUI.setRespuesta('{texto_escapado}', {latencia})")
+        texto_seguro = json.dumps(texto)
+        self._eval(f"if (window.jinxUI) {{ window.jinxUI.setRespuesta({texto_seguro}, {latencia}); }}")
+
+    def actualizar_satelite(self, hub: int, sat: int, titulo: str = None, desc: str = None) -> None:
+        """Actualiza dinámicamente el título y descripción de cualquier satélite en el panel."""
+        if not self.ventana:
+            return
+        t_seguro = json.dumps(titulo) if titulo else "null"
+        d_seguro = json.dumps(desc) if desc else "null"
+        try:
+            self.ventana.evaluate_js(
+                f"if(window.jinxUI) {{ window.jinxUI.actualizarSatelite({hub}, {sat}, {t_seguro}, {d_seguro}); }}"
+            )
+        except Exception as e:
+            logging.error(f"Error UI: {e}")
+
+    def actualizar_detalle(self, paso: int, titulo: str, desc: str) -> None:
+        """Compatibilidad con satélite principal de cada etapa (satélite 1)."""
+        self.actualizar_satelite(paso, 1, titulo, desc)
 
     # ──────────────────────────────────────────
     # Método interno

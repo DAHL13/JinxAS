@@ -313,24 +313,24 @@
 <div class="satellite-card z-30 bg-surface-container-lowest px-3 py-1.5 rounded-xl border border-secondary/30 shadow-md flex items-center gap-2 hover:shadow-lg transition-shadow cursor-pointer" id="sat-1-1">
 <span class="inline-block w-2 h-2 rounded-full bg-secondary animate-ping"></span>
 <div class="flex flex-col whitespace-nowrap">
-<span class="font-body-sm text-body-sm font-semibold text-on-surface">Escucha comando</span>
-<span class="font-label-code-sm text-label-code-sm text-secondary">VAD: Activo</span>
+<span class="font-body-sm text-body-sm font-semibold text-on-surface" id="sat-1-1-titulo">Centinela Activo</span>
+<span class="font-label-code-sm text-label-code-sm text-secondary" id="sat-1-1-desc">Esperando 'Jinx'...</span>
 </div>
 <span class="material-symbols-outlined text-secondary text-body-sm ml-1" data-icon="hearing">hearing</span>
 </div>
 <div class="satellite-card z-30 bg-surface-container-lowest px-3 py-1.5 rounded-xl border border-secondary/30 shadow-md flex items-center gap-2 hover:shadow-lg transition-shadow cursor-pointer" id="sat-1-2">
 <span class="inline-block w-2 h-2 rounded-full bg-secondary"></span>
 <div class="flex flex-col whitespace-nowrap">
-<span class="font-body-sm text-body-sm font-semibold text-on-surface">Calibración audio</span>
-<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">-42 dB Floor</span>
+<span class="font-body-sm text-body-sm font-semibold text-on-surface" id="sat-1-2-titulo">Calibración audio</span>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant" id="sat-1-2-desc">tiny.en Wakeword</span>
 </div>
 <span class="material-symbols-outlined text-secondary text-body-sm ml-1" data-icon="tune">tune</span>
 </div>
 <div class="satellite-card z-30 bg-surface-container-lowest px-3 py-1.5 rounded-xl border border-secondary/30 shadow-md flex items-center gap-2 hover:shadow-lg transition-shadow cursor-pointer" id="sat-1-3">
 <span class="inline-block w-2 h-2 rounded-full bg-secondary"></span>
 <div class="flex flex-col whitespace-nowrap">
-<span class="font-body-sm text-body-sm font-semibold text-on-surface">Umbral de energía</span>
-<span class="font-label-code-sm text-label-code-sm text-secondary">0.65 SNR</span>
+<span class="font-body-sm text-body-sm font-semibold text-on-surface" id="sat-1-3-titulo">Umbral de energía</span>
+<span class="font-label-code-sm text-label-code-sm text-secondary" id="sat-1-3-desc">VAD Dinámico</span>
 </div>
 <span class="material-symbols-outlined text-secondary text-body-sm ml-1" data-icon="equalizer">equalizer</span>
 </div>
@@ -353,24 +353,24 @@
 <div class="satellite-card z-30 bg-surface-container-lowest px-3 py-1.5 rounded-xl border border-tertiary/30 shadow-md flex items-center gap-2 hover:shadow-lg transition-shadow cursor-pointer" id="sat-2-1">
 <span class="inline-block w-2 h-2 rounded-full bg-tertiary"></span>
 <div class="flex flex-col whitespace-nowrap">
-<span class="font-body-sm text-body-sm font-semibold text-on-surface">Whisper Raíz</span>
-<span class="font-label-code-sm text-label-code-sm text-tertiary">v3 Fast-Token</span>
+<span class="font-body-sm text-body-sm font-semibold text-on-surface" id="sat-2-1-titulo">Micrófono</span>
+<span class="font-label-code-sm text-label-code-sm text-tertiary" id="sat-2-1-desc">Listo</span>
 </div>
 <span class="material-symbols-outlined text-tertiary text-body-sm" data-icon="code">code</span>
 </div>
 <div class="satellite-card z-30 bg-surface-container-lowest px-3 py-1.5 rounded-xl border border-tertiary/30 shadow-md flex items-center gap-2 hover:shadow-lg transition-shadow cursor-pointer" id="sat-2-2">
 <span class="inline-block w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
 <div class="flex flex-col whitespace-nowrap">
-<span class="font-body-sm text-body-sm font-semibold text-on-surface">Modelo Small</span>
-<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">244M Params</span>
+<span class="font-body-sm text-body-sm font-semibold text-on-surface" id="sat-2-2-titulo">Modelo Small</span>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant" id="sat-2-2-desc">244M Params</span>
 </div>
 <span class="material-symbols-outlined text-tertiary text-body-sm" data-icon="memory">memory</span>
 </div>
 <div class="satellite-card z-30 bg-surface-container-lowest px-3 py-1.5 rounded-xl border border-tertiary/30 shadow-md flex items-center gap-2 hover:shadow-lg transition-shadow cursor-pointer" id="sat-2-3">
 <span class="inline-block w-2 h-2 rounded-full bg-tertiary"></span>
 <div class="flex flex-col whitespace-nowrap">
-<span class="font-body-sm text-body-sm font-semibold text-on-surface">Idioma 'ES'</span>
-<span class="font-label-code-sm text-label-code-sm text-tertiary">P=0.994 Conf</span>
+<span class="font-body-sm text-body-sm font-semibold text-on-surface" id="sat-2-3-titulo">Idioma 'ES'</span>
+<span class="font-label-code-sm text-label-code-sm text-tertiary" id="sat-2-3-desc">Whisper fp16=False</span>
 </div>
 <span class="material-symbols-outlined text-tertiary text-body-sm" data-icon="language">language</span>
 </div>
@@ -390,7 +390,7 @@
 <span class="font-label-code-sm text-label-code-sm text-on-primary-container mt-1 font-bold tracking-wide uppercase">El Núcleo / Engine LLM</span>
 <div class="flex items-center gap-1 mt-1 bg-surface-container-lowest/20 px-2 py-0.5 rounded-full text-label-code-sm">
 <span class="w-1.5 h-1.5 rounded-full bg-tertiary-fixed animate-ping"></span>
-<span>42 Tok/sec</span>
+<span>qwen2.5:3b</span>
 </div>
 <div class="absolute -left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-surface-container-lowest ring-4 ring-primary"></div>
 </div>
@@ -398,24 +398,24 @@
 <div class="satellite-card z-30 bg-surface-container-lowest px-3.5 py-2 rounded-xl border border-primary/40 shadow-lg flex items-center gap-2 hover:shadow-xl transition-shadow cursor-pointer" id="sat-3-1">
 <span class="inline-block w-2.5 h-2.5 rounded-full bg-primary animate-pulse"></span>
 <div class="flex flex-col whitespace-nowrap">
-<span class="font-label-code-md text-label-code-md font-bold text-primary">qwen2.5 3B</span>
-<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">Q4_K_M (1.9GB)</span>
+<span class="font-label-code-md text-label-code-md font-bold text-primary" id="sat-3-1-titulo">Razonamiento</span>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant" id="sat-3-1-desc">En espera...</span>
 </div>
 <span class="material-symbols-outlined text-primary text-body-sm ml-1" data-icon="weight">weight</span>
 </div>
 <div class="satellite-card z-30 bg-surface-container-lowest px-3.5 py-2 rounded-xl border border-primary/40 shadow-lg flex items-center gap-2 hover:shadow-xl transition-shadow cursor-pointer" id="sat-3-2">
 <span class="inline-block w-2.5 h-2.5 rounded-full bg-primary"></span>
 <div class="flex flex-col whitespace-nowrap">
-<span class="font-body-sm text-body-sm font-semibold text-on-surface">Inference Core</span>
-<span class="font-label-code-sm text-label-code-sm text-primary">Temp: 0.35</span>
+<span class="font-body-sm text-body-sm font-semibold text-on-surface" id="sat-3-2-titulo">qwen2.5:3b</span>
+<span class="font-label-code-sm text-label-code-sm text-primary" id="sat-3-2-desc">Q4_K_M · 1.9 GB</span>
 </div>
 <span class="material-symbols-outlined text-primary text-body-sm ml-1" data-icon="bolt">bolt</span>
 </div>
 <div class="satellite-card z-30 bg-surface-container-lowest px-3.5 py-2 rounded-xl border border-primary/40 shadow-lg flex items-center gap-2 hover:shadow-xl transition-shadow cursor-pointer" id="sat-3-3">
 <span class="inline-block w-2.5 h-2.5 rounded-full bg-primary"></span>
 <div class="flex flex-col whitespace-nowrap">
-<span class="font-body-sm text-body-sm font-semibold text-on-surface">Razonamiento</span>
-<span class="font-label-code-sm text-label-code-sm text-primary">CoT Zero-Shot</span>
+<span class="font-body-sm text-body-sm font-semibold text-on-surface" id="sat-3-3-titulo">Memoria RAG</span>
+<span class="font-label-code-sm text-label-code-sm text-primary" id="sat-3-3-desc">CoT Zero-Shot</span>
 </div>
 <span class="material-symbols-outlined text-primary text-body-sm ml-1" data-icon="schema">schema</span>
 </div>
@@ -438,16 +438,16 @@
 <div class="satellite-card z-30 bg-surface-container-lowest px-3 py-1.5 rounded-xl border border-amber-500/30 shadow-md flex items-center gap-2 hover:shadow-lg transition-shadow cursor-pointer" id="sat-4-1">
 <span class="inline-block w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
 <div class="flex flex-col whitespace-nowrap">
-<span class="font-label-code-md text-label-code-md font-bold text-on-surface">Voz.py</span>
-<span class="font-label-code-sm text-label-code-sm text-amber-600">Worker Async</span>
+<span class="font-label-code-md text-label-code-md font-bold text-on-surface" id="sat-4-1-titulo">Síntesis TTS</span>
+<span class="font-label-code-sm text-label-code-sm text-amber-600" id="sat-4-1-desc">En espera...</span>
 </div>
 <span class="material-symbols-outlined text-amber-600 text-body-sm" data-icon="terminal">terminal</span>
 </div>
 <div class="satellite-card z-30 bg-surface-container-lowest px-3 py-1.5 rounded-xl border border-amber-500/30 shadow-md flex items-center gap-2 hover:shadow-lg transition-shadow cursor-pointer" id="sat-4-2">
 <span class="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
 <div class="flex flex-col whitespace-nowrap">
-<span class="font-body-sm text-body-sm font-semibold text-on-surface">es-MX-DeliNeutral</span>
-<span class="font-label-code-sm text-label-code-sm text-amber-600">Sample: 24kHz</span>
+<span class="font-body-sm text-body-sm font-semibold text-on-surface" id="sat-4-2-titulo">es-MX-DaliaNeural</span>
+<span class="font-label-code-sm text-label-code-sm text-amber-600" id="sat-4-2-desc">Edge TTS · 24kHz</span>
 </div>
 <span class="material-symbols-outlined text-amber-600 text-body-sm" data-icon="graphic_eq">graphic_eq</span>
 </div>
@@ -474,8 +474,8 @@
 </div>
 <!-- Card Body: Rich Streaming Response -->
 <div class="p-4 bg-surface-container-lowest flex flex-col gap-3">
-<div id="respuestaTexto" class="text-body-sm font-body-sm text-on-surface bg-surface-container-low/60 p-3 rounded-xl border border-outline-variant/20 leading-relaxed font-mono">
-<span class="text-primary font-bold">»</span> "El sistema ha capturado el comando de audio, transcrito en español neutro, razonado con Qwen 2.5 3B y sintetizado con voz es-MX-DeliNeutral exitosamente."
+<div class="text-body-sm font-body-sm text-on-surface bg-surface-container-low/60 p-3 rounded-xl border border-outline-variant/20 leading-relaxed font-mono">
+<span class="text-primary font-bold">»</span> <span id="respuestaTexto">"El sistema ha capturado el comando de audio, transcrito en español neutro, razonado con Qwen 2.5 3B y sintetizado con voz es-MX-DaliaNeural exitosamente."</span>
 </div>
 <!-- Audio Waveform Player Bar -->
 <div class="bg-surface-container px-3 py-2.5 rounded-xl flex flex-col gap-2">
@@ -772,8 +772,17 @@
     setRespuesta: function(texto, latenciaMs) {
       const txtEl = document.getElementById('respuestaTexto');
       const latEl = document.getElementById('headerLatency');
-      if (txtEl) txtEl.innerHTML = `<span class="text-primary font-bold">»</span> "${texto}"`;
+      if (txtEl) txtEl.textContent = texto;
       if (latEl) latEl.textContent = `${latenciaMs} ms`;
+    },
+    actualizarSatelite: function(hub, sat, titulo, desc) {
+      const elTitulo = document.getElementById(`sat-${hub}-${sat}-titulo`);
+      const elDesc = document.getElementById(`sat-${hub}-${sat}-desc`);
+      if (elTitulo && titulo !== null) elTitulo.textContent = titulo;
+      if (elDesc && desc !== null) elDesc.textContent = desc;
+    },
+    setSubEstado: function(paso, titulo, desc) {
+      this.actualizarSatelite(paso, 1, titulo, desc);
     }
   };
 </script>

@@ -129,17 +129,21 @@ def _mensaje_a_dict(mensaje) -> dict:
         resultado["tool_calls"] = tool_calls
     return resultado
 
-def procesar_pensamiento(mensajes: list, modelo: str = MODELO_LLM) -> dict:
+def procesar_pensamiento(contexto: list, permitir_herramientas: bool = True, modelo: str = MODELO_LLM) -> dict:
     """
     Envía una lista de mensajes a Ollama con tool calling nativo
     y retorna el objeto completo del mensaje de respuesta.
+    Si permitir_herramientas es False, no se envían herramientas para forzar respuesta de texto.
     """
     try:
-        response = ollama.chat(
-            model=modelo,
-            messages=mensajes,
-            tools=ESQUEMAS_HERRAMIENTAS,
-        )
+        argumentos = {
+            "model": modelo,
+            "messages": contexto,
+        }
+        if permitir_herramientas:
+            argumentos["tools"] = ESQUEMAS_HERRAMIENTAS
+
+        response = ollama.chat(**argumentos)
         return _mensaje_a_dict(response["message"])
     except Exception as e:
         error_msg = f"[X] Error al comunicarse con Ollama: {e}"

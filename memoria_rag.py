@@ -97,12 +97,12 @@ def agregar_nota_al_indice(ruta_archivo: str, contenido: str) -> None:
     logging.info("[RAG] Nota '%s' añadida al índice en memoria (%d fragmentos).", nombre_archivo, len(chunks))
 
 
-def construir_indice() -> None:
+def construir_indice(panel=None) -> int:
     """
     Recorre recursivamente config.RUTA_VAULT buscando archivos .md,
     genera embeddings y construye un índice FAISS IndexFlatL2.
     Los resultados se almacenan en variables globales para consultas rápidas.
-    Se ignoran silenciosamente archivos que no se puedan leer.
+    Devuelve la cantidad total de fragmentos indexados.
     """
     global _indice, _fragmentos, _origenes
 
@@ -116,7 +116,9 @@ def construir_indice() -> None:
         _indice = None
         _fragmentos = []
         _origenes = []
-        return
+        if panel:
+            panel.actualizar_satelite(3, 3, "Memoria RAG", "Bóveda no encontrada")
+        return 0
 
     logging.info("Iniciando escaneo de la bóveda Obsidian...")
 
@@ -181,7 +183,16 @@ def construir_indice() -> None:
         len(_fragmentos),
         len(set(_origenes)),
     )
-    logging.info("Índice FAISS construido con éxito: %d fragmentos vectorizados.", len(_fragmentos))
+    total_chunks = len(_fragmentos)
+    logging.info("Índice FAISS construido con éxito: %d fragmentos vectorizados.", total_chunks)
+    if panel:
+        panel.actualizar_satelite(3, 3, "Memoria RAG", f"{total_chunks} Chunks Listos")
+    return total_chunks
+
+
+def obtener_cantidad_fragmentos() -> int:
+    """Devuelve la cantidad total de fragmentos indexados en memoria."""
+    return len(_fragmentos)
 
 
 def buscar_en_notas(consulta: str, top_k: int = 3) -> str:
