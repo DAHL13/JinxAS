@@ -156,12 +156,7 @@
 <span class="text-headline-sm font-headline-sm font-bold tracking-tight text-primary dark:text-inverse-primary">SENTINEL // PIPELINE GRAPH</span>
 </div>
 <!-- Top Links (Desktop) -->
-<nav class="hidden md:flex items-center gap-space-lg ml-space-md">
-<a class="text-primary dark:text-inverse-primary font-bold border-b-2 border-primary dark:border-inverse-primary pb-1 font-label-code-md text-label-code-md hover:text-primary dark:hover:text-inverse-primary transition-colors duration-150" href="#graph">Graph Visualizer</a>
-<a class="text-on-surface-variant dark:text-outline-variant font-medium font-label-code-md text-label-code-md hover:text-primary dark:hover:text-inverse-primary transition-colors duration-150" href="#telemetry">Telemetry &amp; Logs</a>
-<a class="text-on-surface-variant dark:text-outline-variant font-medium font-label-code-md text-label-code-md hover:text-primary dark:hover:text-inverse-primary transition-colors duration-150" href="#weights">Model Weights</a>
-<a class="text-on-surface-variant dark:text-outline-variant font-medium font-label-code-md text-label-code-md hover:text-primary dark:hover:text-inverse-primary transition-colors duration-150" href="#tuner">Acoustic Tuner</a>
-</nav>
+
 </div>
 <!-- Live Status Metric & Actions -->
 <div class="flex items-center gap-space-md">
@@ -175,16 +170,9 @@
 <button class="p-1.5 hover:text-primary rounded-lg hover:bg-surface-container transition-colors" title="Compute Velocity"><span class="material-symbols-outlined text-headline-sm" data-icon="speed">speed</span></button>
 <button class="p-1.5 hover:text-primary rounded-lg hover:bg-surface-container transition-colors" title="Graph Parameters"><span class="material-symbols-outlined text-headline-sm" data-icon="settings">settings</span></button>
 </div>
-<button class="bg-primary hover:bg-primary-container text-on-primary font-label-code-md text-label-code-md px-space-md py-1.5 rounded-lg active:scale-95 transition-all shadow-sm flex items-center gap-1.5" id="runSimBtn">
-<span class="material-symbols-outlined text-headline-sm" data-icon="play_arrow">play_arrow</span>
-<span>Run Simulation</span>
-</button>
-<button class="hidden xl:inline-flex bg-surface-container-lowest text-error hover:bg-error-container/20 border border-error/30 font-label-code-md text-label-code-md px-space-sm py-1.5 rounded-lg active:scale-95 transition-all">
+<button class="hidden xl:inline-flex bg-surface-container-lowest text-error hover:bg-error-container/20 border border-error/30 font-label-code-md text-label-code-md px-space-sm py-1.5 rounded-lg active:scale-95 transition-all" id="flushBtn">
         Emergency Flush
       </button>
-<div class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center text-primary font-label-code-sm border border-outline-variant/40" title="User profile matrix badge avatar">
-        ST-8
-      </div>
 </div>
 </header>
 <!-- Interactive Force-Directed Canvas Section -->
@@ -192,23 +180,23 @@
 <!-- Top Step Breadcrumbs Indicator -->
 <div class="max-w-7xl mx-auto w-full mb-4 flex items-center justify-between text-on-surface-variant font-label-code-sm text-label-code-sm">
 <div class="flex items-center gap-2 overflow-x-auto py-1">
-<span class="text-secondary font-bold flex items-center gap-1">
+<span class="text-secondary font-bold flex items-center gap-1" id="bread-1">
 <span class="w-2 h-2 rounded-full bg-secondary inline-block"></span>1. Whisper Centinela
         </span>
 <span class="material-symbols-outlined text-body-sm text-outline-variant" data-icon="chevron_right">chevron_right</span>
-<span class="text-tertiary font-bold flex items-center gap-1">
+<span class="text-tertiary font-bold flex items-center gap-1" id="bread-2">
 <span class="w-2 h-2 rounded-full bg-tertiary inline-block"></span>2. Transcripción
         </span>
 <span class="material-symbols-outlined text-body-sm text-outline-variant" data-icon="chevron_right">chevron_right</span>
-<span class="text-primary font-bold flex items-center gap-1">
+<span class="text-primary font-bold flex items-center gap-1" id="bread-3">
 <span class="w-2 h-2 rounded-full bg-primary inline-block"></span>3. Ollama (Núcleo)
         </span>
 <span class="material-symbols-outlined text-body-sm text-outline-variant" data-icon="chevron_right">chevron_right</span>
-<span class="text-amber-600 font-bold flex items-center gap-1">
+<span class="text-amber-600 font-bold flex items-center gap-1" id="bread-4">
 <span class="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>4. Voz Neural
         </span>
 <span class="material-symbols-outlined text-body-sm text-outline-variant" data-icon="chevron_right">chevron_right</span>
-<span class="text-primary font-bold flex items-center gap-1">
+<span class="text-primary font-bold flex items-center gap-1" id="bread-5">
 <span class="w-2 h-2 rounded-full bg-primary inline-block"></span>5. Salida Respuesta
         </span>
 </div>
@@ -465,7 +453,6 @@
 <span class="inline-block w-2.5 h-2.5 rounded-full bg-tertiary-fixed-variant animate-pulse"></span>
 <span class="font-label-code-sm text-label-code-sm font-bold text-on-surface uppercase tracking-wider">Salida Generada</span>
 </div>
-<span class="font-label-code-sm text-label-code-sm bg-primary/10 text-primary px-2 py-0.5 rounded-md font-bold">78 ms E2E</span>
 </div>
 <div class="flex items-center justify-between text-outline">
 <span class="font-label-code-sm text-label-code-sm">[Qwen 2.5 3B via Ollama]</span>
@@ -486,7 +473,6 @@
 </button>
 <span class="font-label-code-sm text-label-code-sm font-bold text-on-surface">PCM Audio Preview</span>
 </div>
-<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">00:03.4 / 24kHz</span>
 </div>
 <!-- Fake Spectrogram / Scrubber -->
 <div class="flex items-center gap-0.5 h-6 px-1">
@@ -517,10 +503,6 @@
 <button class="flex-1 py-1.5 px-3 bg-surface-container-low hover:bg-surface-container text-on-surface font-label-code-sm text-label-code-sm rounded-lg border border-outline-variant/30 flex items-center justify-center gap-1 transition-colors" id="copyTextBtn">
 <span class="material-symbols-outlined text-body-sm" data-icon="content_copy">content_copy</span>
 <span>Copiar Texto</span>
-</button>
-<button class="flex-1 py-1.5 px-3 bg-primary/10 hover:bg-primary/20 text-primary font-label-code-sm text-label-code-sm rounded-lg border border-primary/20 flex items-center justify-center gap-1 transition-colors font-bold">
-<span class="material-symbols-outlined text-body-sm" data-icon="replay">replay</span>
-<span>Regenerar</span>
 </button>
 </div>
 </div>
@@ -602,9 +584,11 @@
       const speedOptions = [0.5, 1.0, 2.0];
       let currentSpeedIdx = 1;
 
-      // Orbit rendering loop
+      // Orbit rendering loop — se pausa automáticamente si la ventana no es visible (optimización GPU)
+      let animFrameId = null;
+
       function animate() {
-        if (orbitRunning) {
+        if (!document.hidden && orbitRunning) {
           satellites.forEach(sat => {
             sat.angle += sat.speed * speedFactor;
 
@@ -635,11 +619,18 @@
             if (sat.cordEl) sat.cordEl.setAttribute('d', dPath);
           });
         }
-        requestAnimationFrame(animate);
+        animFrameId = requestAnimationFrame(animate);
       }
 
-      // Start orbital animation immediately
-      requestAnimationFrame(animate);
+      // Reanudar / pausar animación según visibilidad de la ventana
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && animFrameId === null) {
+          animFrameId = requestAnimationFrame(animate);
+        }
+      });
+
+      // Arrancar el loop orbital
+      animFrameId = requestAnimationFrame(animate);
 
       // Dock Controls: Velocity Toggle
       const velocityBtn = document.getElementById('velocityBtn');
@@ -694,69 +685,35 @@
         physicsEngineBtn.classList.toggle('bg-surface-container');
       });
 
-      // Header Simulation Trigger
-      const runSimBtn = document.getElementById('runSimBtn');
-      const headerLatency = document.getElementById('headerLatency');
-      const dynamicCords = document.querySelectorAll('.dynamic-cord');
 
-      let isSimulating = false;
-      runSimBtn.addEventListener('click', () => {
-        if (isSimulating) return;
-        isSimulating = true;
-        const originalSpeed = speedFactor;
-        speedFactor = 2.5; // Acceleration effect during compute
-        runSimBtn.innerHTML = `<span class="material-symbols-outlined text-headline-sm animate-spin" data-icon="progress_activity">progress_activity</span><span>Simulating...</span>`;
-
-        dynamicCords.forEach(cord => {
-          cord.style.animationDuration = '0.4s';
-        });
-
-        let count = 0;
-        const interval = setInterval(() => {
-          count++;
-          const randomLatency = Math.floor(62 + Math.random() * 24);
-          headerLatency.textContent = `${randomLatency} ms`;
-
-          if (count > 6) {
-            clearInterval(interval);
-            headerLatency.textContent = '72 ms';
-            speedFactor = originalSpeed;
-            runSimBtn.innerHTML = `<span class="material-symbols-outlined text-headline-sm" data-icon="check_circle">check_circle</span><span>Simulation Done</span>`;
-
-            dynamicCords.forEach(cord => {
-              cord.style.animationDuration = '1.4s';
-            });
-
-            setTimeout(() => {
-              runSimBtn.innerHTML = `<span class="material-symbols-outlined text-headline-sm" data-icon="play_arrow">play_arrow</span><span>Run Simulation</span>`;
-              isSimulating = false;
-            }, 2500);
-          }
-        }, 280);
-      });
-
-      // Audio Toggle Action
+      // Audio Replay Action — llama a la API inversa de pywebview para reproducir el último audio
       const playAudioBtn = document.getElementById('playAudioBtn');
-      let isPlaying = false;
       playAudioBtn.addEventListener('click', () => {
-        isPlaying = !isPlaying;
-        if (isPlaying) {
-          playAudioBtn.innerHTML = `<span class="material-symbols-outlined text-body-sm" data-icon="pause">pause</span>`;
-          playAudioBtn.classList.add('bg-amber-600');
-        } else {
+        if (window.pywebview) {
+          window.pywebview.api.repetir_audio_ui();
+        }
+        // Feedback visual momentáneo
+        playAudioBtn.innerHTML = `<span class="material-symbols-outlined text-body-sm" data-icon="volume_up">volume_up</span>`;
+        playAudioBtn.classList.add('bg-amber-600');
+        setTimeout(() => {
           playAudioBtn.innerHTML = `<span class="material-symbols-outlined text-body-sm" data-icon="play_arrow">play_arrow</span>`;
           playAudioBtn.classList.remove('bg-amber-600');
-        }
+        }, 2000);
       });
 
-      // Copy Response Text Feedback
+      // Copy Response Text — usa clipboard real leyendo respuestaTexto
       const copyTextBtn = document.getElementById('copyTextBtn');
       copyTextBtn.addEventListener('click', () => {
+        const texto = document.getElementById('respuestaTexto')?.textContent || '';
         const originalContent = copyTextBtn.innerHTML;
-        copyTextBtn.innerHTML = `<span class="material-symbols-outlined text-body-sm text-tertiary" data-icon="check">check</span><span class="text-tertiary font-bold">Copiado</span>`;
-        setTimeout(() => {
-          copyTextBtn.innerHTML = originalContent;
-        }, 1800);
+        navigator.clipboard.writeText(texto).then(() => {
+          copyTextBtn.innerHTML = `<span class="material-symbols-outlined text-body-sm text-tertiary" data-icon="check">check</span><span class="text-tertiary font-bold">Copiado</span>`;
+          setTimeout(() => { copyTextBtn.innerHTML = originalContent; }, 1800);
+        }).catch(() => {
+          // Fallback por si clipboard no está disponible en el contexto webview
+          copyTextBtn.innerHTML = `<span class="material-symbols-outlined text-body-sm text-error" data-icon="error">error</span><span class="text-error">Error</span>`;
+          setTimeout(() => { copyTextBtn.innerHTML = originalContent; }, 1800);
+        });
       });
     });
   </script>
@@ -768,6 +725,11 @@
         const el = document.getElementById(hubId);
         if (el) el.style.opacity = (index + 1 === pasoActivo) ? '1' : '0.4';
       });
+      // Sincronizar opacidad de breadcrumbs con el paso activo
+      for (let i = 1; i <= 5; i++) {
+        const bread = document.getElementById('bread-' + i);
+        if (bread) bread.style.opacity = (i === pasoActivo) ? '1' : '0.4';
+      }
     },
     setRespuesta: function(texto, latenciaMs) {
       const txtEl = document.getElementById('respuestaTexto');
@@ -785,5 +747,15 @@
       this.actualizarSatelite(paso, 1, titulo, desc);
     }
   };
+
+  // Emergency Flush → API inversa pywebview
+  document.addEventListener('DOMContentLoaded', () => {
+    const flushBtn = document.getElementById('flushBtn');
+    if (flushBtn) {
+      flushBtn.addEventListener('click', () => {
+        if (window.pywebview) { window.pywebview.api.limpiar_memoria_ui(); }
+      });
+    }
+  });
 </script>
 </body></html>

@@ -77,3 +77,53 @@ class ControladorPanel:
             self.ventana.evaluate_js(js)
         except Exception as exc:
             logging.warning("[ControladorPanel] evaluate_js falló: %s", exc)
+
+
+class InterfazAPI:
+    """API inversa expuesta a JavaScript a través de pywebview (JS → Python).
+
+    pywebview inyecta esta clase en el contexto del navegador como
+    ``window.pywebview.api``, permitiendo que el frontend llame métodos
+    Python directamente desde el <script> del panel.
+
+    Para conectar el historial de conversación, asigna la referencia
+    antes de crear la ventana:
+        api_js = InterfazAPI()
+        api_js.contexto = contexto  # la lista mutable del bucle de voz
+    """
+
+    def __init__(self) -> None:
+        # Se asigna desde main.py para apuntar al contexto activo del bucle
+        self.contexto: list | None = None
+
+    def limpiar_memoria_ui(self) -> None:
+        """Borra el historial de conversación desde el botón 'Emergency Flush' del panel."""
+        try:
+            if self.contexto is not None and len(self.contexto) > 1:
+                # Conserva sólo el mensaje de sistema (index 0)
+                del self.contexto[1:]
+                logging.info("[InterfazAPI] Historial borrado desde el panel UI (Emergency Flush).")
+            else:
+                logging.info("[InterfazAPI] Flush solicitado: historial ya estaba vacío.")
+        except Exception as exc:
+            logging.error("[InterfazAPI] Error al limpiar historial: %s", exc)
+
+    def repetir_audio_ui(self) -> None:
+        """Repite en voz alta el último mensaje del asistente desde el botón Play del panel."""
+        import threading
+        try:
+            ultimo_texto = ""
+            if self.contexto:
+                # Buscar el último mensaje del asistente en el contexto
+                for msg in reversed(self.contexto):
+                    if msg.get("role") == "assistant":
+                        ultimo_texto = (msg.get("content") or "").strip()
+                        break
+            if ultimo_texto:
+                from voz import reproducir_voz
+                logging.info("[InterfazAPI] Repitiendo último audio desde el panel UI.")
+                threading.Thread(target=reproducir_voz, args=(ultimo_texto,), daemon=True).start()
+            else:
+                logging.info("[InterfazAPI] Repetir audio: no hay respuesta previa en el contexto.")
+        except Exception as exc:
+            logging.error("[InterfazAPI] Error al repetir audio: %s", exc)

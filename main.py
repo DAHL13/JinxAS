@@ -16,7 +16,7 @@ from herramientas import (
 )
 from memoria import guardar_nota, buscar_nota
 from memoria_rag import construir_indice, obtener_cantidad_fragmentos
-from interfaz import ControladorPanel
+from interfaz import ControladorPanel, InterfazAPI
 from config import (
     MODELO_WHISPER,
     PALABRA_ACTIVACION,
@@ -65,7 +65,7 @@ def _extraer_llamada(tool_call) -> tuple:
         argumentos = {}
     return nombre, argumentos
 
-def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None):
+def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None, api_js=None):
     if evento_apagar is None:
         evento_apagar = threading.Event()
     if panel is None:
@@ -84,6 +84,9 @@ def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None):
     logging.info("[RAG] Bóveda lista para consultas.")
 
     contexto = [{"role": "system", "content": SYSTEM_PROMPT}]
+    # Conectar el contexto mutable a la API inversa para Emergency Flush
+    if api_js is not None:
+        api_js.contexto = contexto
 
     while not evento_apagar.is_set():
         try:
@@ -137,6 +140,9 @@ def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None):
                 if any(frase in texto_limpio for frase in frases_reinicio):
                     logging.info("Reiniciando memoria de conversación...")
                     contexto = [{"role": "system", "content": SYSTEM_PROMPT}]
+                    # Reasignar la nueva lista al api_js para que Emergency Flush siga operativo
+                    if api_js is not None:
+                        api_js.contexto = contexto
                     reproducir_voz("Memoria borrada. ¿De qué hablamos ahora?")
                     time.sleep(0.8)
                     continue
@@ -239,7 +245,12 @@ def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None):
             time.sleep(2)
 
 if __name__ == "__main__":
-    hilo_voz = threading.Thread(target=bucle_voz_secundario, args=(evento_apagar, panel), daemon=True)
+    # Holder mutable compartido entre el hilo de voz y la API inversa.
+    # El hilo asigna holder[0] cuando inicializa el contexto;
+    # InterfazAPI.limpiar_memoria_ui() lo limpia vía api_js.contexto.
+    api_js = InterfazAPI()
+
+    hilo_voz = threading.Thread(target=bucle_voz_secundario, args=(evento_apagar, panel, api_js), daemon=True)
     hilo_voz.start()
 
     ventana = webview.create_window(
@@ -247,6 +258,7 @@ if __name__ == "__main__":
         'panel_sentinel.html',
         width=1760,
         height=900,
+        js_api=api_js,
     )
     ventana.events.closed += lambda: evento_apagar.set()
     # Conecta el controlador de UI con la ventana nativa
