@@ -18,7 +18,7 @@
 
 ## 🏗️ Arquitectura Modular
 
-El proyecto está dividido en **7 archivos**, cada uno con una responsabilidad específica:
+El proyecto está dividido en **9 archivos**, cada uno con una responsabilidad específica:
 
 ### ⚙️ Configuración — `config.py`
 **Punto único de configuración del proyecto**
@@ -93,6 +93,14 @@ Ciclo principal del asistente, con **memoria de conversación persistente**:
 4. Detecta palabras de salida (`salir`, `apagar`, `cancelar`, `detener`) y frases de reinicio de memoria (`olvida todo`, `borra la memoria`, `nueva conversación`).
 5. Envía el historial a `cerebro.py`; si el modelo solicita herramientas, las ejecuta, agrega los resultados al historial y le pide al modelo una respuesta final hablada.
 6. Reproduce la respuesta con `voz.py`.
+7. Corre en un **hilo secundario** (`threading`), dejando el hilo principal libre para la ventana del panel visual.
+
+### 🖥️ Interfaz Visual — `interfaz.py` + `panel_sentinel.html`
+**Panel "SENTINEL // PIPELINE GRAPH" — visualización en tiempo real del pipeline**
+
+- Diseño exportado de Google Stitch (HTML/CSS/JS), renderizado como ventana nativa de Windows con **pywebview**, sin depender de Node.js/Electron.
+- `ControladorPanel` (Python → JavaScript): resalta la etapa activa del pipeline en tiempo real (Centinela → Transcripción → Núcleo → Síntesis → Completado), actualiza la latencia real de cada turno, el texto de la respuesta final, y el estado de cada componente (RAG, modelo Whisper en uso, herramienta ejecutándose).
+- `InterfazAPI` (JavaScript → Python): expone funciones de Python al panel a través de `window.pywebview.api`, permitiendo acciones como reiniciar la memoria de conversación ("Emergency Flush") o repetir en voz alta la última respuesta, directamente desde la interfaz.
 
 ---
 
@@ -107,6 +115,7 @@ Ciclo principal del asistente, con **memoria de conversación persistente**:
 | Audio | PyAudio, SpeechRecognition, pygame |
 | Sistema | psutil |
 | Notas | Markdown / Obsidian-compatible |
+| Interfaz visual | [pywebview](https://pywebview.flowrl.com/) (ventana nativa) + HTML/CSS/JS (Google Stitch) |
 | Logging | Módulo `logging` estándar de Python (sin `print()`) |
 
 ---
@@ -135,23 +144,27 @@ pip install -r requirements.txt
 python main.py
 ```
 
+Esto abre la ventana del panel "SENTINEL" y arranca el asistente de voz en segundo plano — ambos comparten el mismo proceso, no hace falta ejecutarlos por separado.
+
 ---
 
 ## 📁 Estructura del Proyecto
 
 ```
 JinxAS/
-├── main.py           # Orquestador: loop principal, memoria de conversación, ejecución de tools
-├── config.py         # Configuración centralizada (modelo, voz, tiempos, allowlist de apps)
-├── percepcion.py     # Módulo STT: escucha y transcripción con Whisper
-├── cerebro.py        # Módulo LLM: tool calling nativo con Ollama
-├── voz.py            # Módulo TTS: síntesis de voz con Edge-TTS
-├── herramientas.py   # Herramientas del sistema (CPU, temperatura, abrir apps, clima, consulta RAG)
-├── memoria.py        # Módulo de memoria con bóveda Obsidian
-├── memoria_rag.py    # Motor RAG local: indexación FAISS + búsqueda semántica
-├── requirements.txt  # Dependencias del proyecto
-├── .gitignore        # Exclusiones de Git
-└── Boveda_Obsidian/  # Notas guardadas por Jinx (excluida de Git)
+├── main.py             # Orquestador: loop de voz (hilo secundario), tools, ventana pywebview
+├── config.py           # Configuración centralizada (modelo, voz, tiempos, allowlist de apps)
+├── percepcion.py       # Módulo STT: Modo Centinela (wake word) + transcripción con Whisper
+├── cerebro.py          # Módulo LLM: tool calling nativo con Ollama
+├── voz.py              # Módulo TTS: síntesis de voz con Edge-TTS
+├── herramientas.py     # Herramientas del sistema (CPU, temperatura, abrir apps, clima, consulta RAG)
+├── memoria.py          # Módulo de memoria con bóveda Obsidian
+├── memoria_rag.py      # Motor RAG local: indexación FAISS + búsqueda semántica
+├── interfaz.py         # Puente pywebview: ControladorPanel (Python→JS) e InterfazAPI (JS→Python)
+├── panel_sentinel.html # Panel visual del pipeline (export de Google Stitch)
+├── requirements.txt    # Dependencias del proyecto
+├── .gitignore          # Exclusiones de Git
+└── Boveda_Obsidian/    # Notas guardadas por Jinx (excluida de Git)
 ```
 
 ---
@@ -177,6 +190,7 @@ JinxAS/
 - Todas las aperturas de aplicaciones pasan por un **allowlist explícito** (`MAPA_APLICACIONES` en `config.py`) — Jinx nunca ejecuta un nombre de aplicación arbitrario.
 - Las llamadas a procesos usan `subprocess` con lista de argumentos y `shell=False`, nunca `os.system` ni cadenas de shell interpoladas.
 - El razonamiento usa tool calling estructurado en vez de parseo de texto libre, reduciendo el riesgo de que una respuesta inesperada del modelo se interprete como un comando no intencionado.
+- El puente entre el panel y Python (`InterfazAPI`) solo expone funciones específicas y controladas (reiniciar memoria, repetir audio) — no ejecuta código arbitrario recibido desde la interfaz.
 
 ---
 
@@ -186,7 +200,7 @@ JinxAS/
 - ✅ **Fase 2** — Tool calling nativo, configuración centralizada, logging.
 - ✅ **Fase 3** — Completada: Wake Word ("Jinx") con Modo Centinela (Whisper tiny.en), consulta de clima exterior en Tehuacán (wttr.in) y memoria de contexto ampliada.
 - ✅ **Fase 4** — Completada: memoria semántica (RAG) sobre la bóveda con FAISS + sentence-transformers, búsqueda por similitud y sincronización en tiempo real.
-- ⏳ **Fase 5** — Planeada: proactividad, recordatorios/calendario, control de música, interfaz visual simple.
+- 🚧 **Fase 5** — En curso: panel visual "SENTINEL" (pywebview) integrado y funcionando, mostrando el pipeline en tiempo real; pendiente: proactividad, recordatorios/calendario, control de música.
 
 ---
 
