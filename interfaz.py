@@ -127,3 +127,21 @@ class InterfazAPI:
                 logging.info("[InterfazAPI] Repetir audio: no hay respuesta previa en el contexto.")
         except Exception as exc:
             logging.error("[InterfazAPI] Error al repetir audio: %s", exc)
+
+
+class WebViewLogHandler(logging.Handler):
+    def __init__(self, ventana):
+        super().__init__()
+        self.ventana = ventana
+        self.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
+
+    def emit(self, record):
+        if not self.ventana:
+            return
+        msg = self.format(record)
+        msg_seguro = json.dumps(msg)
+        try:
+            self.ventana.evaluate_js(f"if(window.jinxUI && window.jinxUI.addLog) {{ window.jinxUI.addLog({msg_seguro}); }}")
+        except Exception:
+            pass
+

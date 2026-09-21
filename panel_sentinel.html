@@ -145,6 +145,19 @@
       will-change: transform, left, top;
       pointer-events: auto;
     }
+    #terminal-content::-webkit-scrollbar {
+      width: 6px;
+    }
+    #terminal-content::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    #terminal-content::-webkit-scrollbar-thumb {
+      background: rgba(119, 117, 135, 0.3);
+      border-radius: 9999px;
+    }
+    #terminal-content::-webkit-scrollbar-thumb:hover {
+      background: rgba(119, 117, 135, 0.6);
+    }
   </style>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased min-h-screen flex flex-col overflow-x-hidden selection:bg-primary selection:text-on-primary">
@@ -201,7 +214,7 @@
         </span>
 </div>
 <div class="hidden sm:flex items-center gap-space-sm bg-surface-container-lowest/80 backdrop-blur-md px-3 py-1 rounded-full border border-outline-variant/30 shadow-sm">
-<span class="flex items-center gap-1 text-on-surface"><span class="material-symbols-outlined text-label-code-sm" data-icon="rotate_right">rotate_right</span> Órbitas Activas (<span id="orbitSpeedIndicator">1.0x</span>)</span>
+<span class="flex items-center gap-1 text-on-surface"><span class="material-symbols-outlined text-label-code-sm" data-icon="rotate_right">rotate_right</span> Órbitas Activas (<span id="orbitSpeedIndicator">0.5x</span>)</span>
 <span class="text-outline-variant">|</span>
 <span class="text-tertiary-fixed-variant font-bold">Cordones Elásticos en Tiempo Real</span>
 </div>
@@ -515,7 +528,7 @@
 <!-- Item 1: Velocity Toggle (0.5x / 1.0x / 2.0x) -->
 <button class="flex flex-col items-center justify-center bg-primary-container dark:bg-primary text-on-primary-container dark:text-on-primary rounded-xl px-3 py-1.5 active:scale-95 transition-all duration-150" id="velocityBtn" title="Cambiar Velocidad Orbital">
 <span class="material-symbols-outlined text-headline-sm" data-icon="fast_forward">fast_forward</span>
-<span class="font-label-code-sm text-label-code-sm" id="velocityBtnLabel">Velocity 1.0x</span>
+<span class="font-label-code-sm text-label-code-sm" id="velocityBtnLabel">Velocity 0.5x</span>
 </button>
 <!-- Item 2: Play/Pause Orbit Engine -->
 <button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-3 py-1.5 hover:bg-surface-container dark:hover:bg-surface-dim hover:text-on-surface dark:hover:text-inverse-on-surface rounded-xl active:scale-95 transition-all duration-150" id="orbitToggleBtn" title="Pausar / Reanudar Órbitas">
@@ -533,7 +546,7 @@
 <span class="font-label-code-sm text-label-code-sm">Physics Engine</span>
 </button>
 <!-- Item 5: Terminal Log -->
-<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-3 py-1.5 hover:bg-surface-container dark:hover:bg-surface-dim hover:text-on-surface dark:hover:text-inverse-on-surface rounded-xl active:scale-95 transition-all duration-150" title="Diagnostics Console">
+<button id="btn-terminal-log" class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-3 py-1.5 hover:bg-surface-container dark:hover:bg-surface-dim hover:text-on-surface dark:hover:text-inverse-on-surface rounded-xl active:scale-95 transition-all duration-150" title="Diagnostics Console">
 <span class="material-symbols-outlined text-headline-sm" data-icon="terminal">terminal</span>
 <span class="font-label-code-sm text-label-code-sm">Terminal Log</span>
 </button>
@@ -580,9 +593,9 @@
       });
 
       let orbitRunning = true;
-      let speedFactor = 1.0;
+      let speedFactor = 0.5;
       const speedOptions = [0.5, 1.0, 2.0];
-      let currentSpeedIdx = 1;
+      let currentSpeedIdx = 0;
 
       // Orbit rendering loop — se pausa automáticamente si la ventana no es visible (optimización GPU)
       let animFrameId = null;
@@ -745,10 +758,71 @@
     },
     setSubEstado: function(paso, titulo, desc) {
       this.actualizarSatelite(paso, 1, titulo, desc);
+    },
+    addLog: function(mensaje) {
+      const container = document.getElementById('terminal-content');
+      if (!container) return;
+
+      let level = "INFO";
+      let badgeClass = "bg-secondary-fixed text-secondary border border-secondary/30";
+      let content = mensaje;
+
+      if (mensaje.startsWith("INFO - ")) {
+        level = "INFO";
+        badgeClass = "bg-secondary-fixed text-secondary border border-secondary/30";
+        content = mensaje.substring(7);
+      } else if (mensaje.startsWith("WARNING - ")) {
+        level = "WARN";
+        badgeClass = "bg-amber-100 text-amber-800 border border-amber-500/40";
+        content = mensaje.substring(10);
+      } else if (mensaje.startsWith("ERROR - ")) {
+        level = "ERR";
+        badgeClass = "bg-error-container text-error border border-error/40";
+        content = mensaje.substring(8);
+      } else if (mensaje.startsWith("DEBUG - ")) {
+        level = "DEBUG";
+        badgeClass = "bg-surface-container-high text-outline border border-outline-variant/40";
+        content = mensaje.substring(8);
+      }
+
+      const now = new Date();
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
+      const linea = document.createElement('div');
+      linea.className = "flex items-start gap-2 py-1 px-1.5 rounded-lg hover:bg-surface-container-high/50 transition-colors border-b border-outline-variant/10 leading-tight";
+
+      const timeSpan = document.createElement('span');
+      timeSpan.className = "text-outline/60 font-mono text-[10px] select-none pt-0.5 shrink-0";
+      timeSpan.textContent = timeStr;
+
+      const badgeSpan = document.createElement('span');
+      badgeSpan.className = `px-1.5 py-0.5 rounded font-mono text-[9px] uppercase tracking-wider font-bold select-none shrink-0 ${badgeClass}`;
+      badgeSpan.textContent = level;
+
+      const textSpan = document.createElement('span');
+      textSpan.className = "flex-1 font-mono text-[11px] break-all select-text text-on-surface";
+      textSpan.textContent = content;
+
+      linea.appendChild(timeSpan);
+      linea.appendChild(badgeSpan);
+      linea.appendChild(textSpan);
+
+      container.appendChild(linea);
+
+      // Mantener ligero el DOM (máximo 100 líneas) para no saturar la GPU
+      while (container.children.length > 100) {
+        container.removeChild(container.firstChild);
+      }
+      container.scrollTop = container.scrollHeight;
+
+      const counter = document.getElementById('log-line-counter');
+      if (counter) {
+        counter.textContent = `${container.children.length} LÍNEAS (MÁX 100)`;
+      }
     }
   };
 
-  // Emergency Flush → API inversa pywebview
+  // Emergency Flush & Terminal Log Toggle
   document.addEventListener('DOMContentLoaded', () => {
     const flushBtn = document.getElementById('flushBtn');
     if (flushBtn) {
@@ -756,6 +830,113 @@
         if (window.pywebview) { window.pywebview.api.limpiar_memoria_ui(); }
       });
     }
+
+    const btnTerminal = document.getElementById('btn-terminal-log');
+    const overlay = document.getElementById('terminal-overlay');
+    if (btnTerminal && overlay) {
+      btnTerminal.addEventListener('click', () => {
+        overlay.classList.toggle('hidden');
+        btnTerminal.classList.toggle('bg-primary-fixed');
+        btnTerminal.classList.toggle('text-primary');
+      });
+    }
+
+    // Botón Limpiar Terminal
+    const btnClearTerminal = document.getElementById('btn-clear-terminal');
+    if (btnClearTerminal) {
+      btnClearTerminal.addEventListener('click', () => {
+        const container = document.getElementById('terminal-content');
+        if (container) {
+          container.innerHTML = `
+            <div class="text-outline/70 italic flex items-center gap-1.5 border-b border-outline-variant/20 pb-1.5 mb-0.5 font-label-code-sm">
+              <span class="material-symbols-outlined text-label-code-sm text-secondary" data-icon="info">info</span>
+              <span>[SYS] Buffer reiniciado. Esperando nuevos registros...</span>
+            </div>
+          `;
+          const counter = document.getElementById('log-line-counter');
+          if (counter) counter.textContent = '1 LÍNEAS (MÁX 100)';
+        }
+      });
+    }
+
+    // Botón Copiar Terminal
+    const btnCopyTerminal = document.getElementById('btn-copy-terminal');
+    if (btnCopyTerminal) {
+      btnCopyTerminal.addEventListener('click', () => {
+        const container = document.getElementById('terminal-content');
+        if (!container) return;
+        const texto = Array.from(container.children)
+          .map(el => el.textContent.trim())
+          .join('\n');
+        navigator.clipboard.writeText(texto).then(() => {
+          const btnText = document.getElementById('btn-copy-terminal-text');
+          if (btnText) {
+            const orig = btnText.textContent;
+            btnText.textContent = '¡Copiado!';
+            setTimeout(() => { btnText.textContent = orig; }, 1800);
+          }
+        }).catch(() => {});
+      });
+    }
   });
 </script>
+
+<!-- Panel de Terminal Log Overlay (HUD Design) -->
+<div id="terminal-overlay" class="hidden fixed bottom-24 right-8 w-[640px] max-w-[calc(100vw-3rem)] h-[460px] bg-surface-container-lowest/95 dark:bg-inverse-surface/95 rounded-2xl border border-outline-variant/40 shadow-2xl z-50 flex flex-col overflow-hidden backdrop-blur-xl select-none transition-all duration-200">
+  <!-- Ingress Socket Indicator -->
+  <div class="absolute -top-1.5 right-8 w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-primary-fixed z-10"></div>
+
+  <!-- Header with Badges & Action Buttons -->
+  <div class="bg-surface-container-low px-4 py-3 border-b border-outline-variant/20 flex flex-col gap-1.5 select-none">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="inline-block w-2.5 h-2.5 rounded-full bg-tertiary-fixed-variant animate-pulse"></span>
+        <span class="material-symbols-outlined text-primary text-headline-sm" data-icon="terminal">terminal</span>
+        <span class="font-label-code-sm text-label-code-sm font-bold text-on-surface uppercase tracking-wider">SENTINEL // SYSTEM LOGS</span>
+        <span class="font-label-code-sm text-label-code-sm bg-primary-fixed text-on-primary-fixed px-2 py-0.5 rounded-full font-bold">PYTHON BACKEND</span>
+      </div>
+      <div class="flex items-center gap-1">
+        <!-- Botón Limpiar Buffer -->
+        <button id="btn-clear-terminal" class="p-1 hover:text-primary text-on-surface-variant rounded-lg hover:bg-surface-container transition-colors flex items-center justify-center" title="Limpiar buffer">
+          <span class="material-symbols-outlined text-body-md" data-icon="delete_sweep">delete_sweep</span>
+        </button>
+        <!-- Botón Cerrar -->
+        <button onclick="document.getElementById('terminal-overlay').classList.add('hidden'); document.getElementById('btn-terminal-log')?.classList.remove('bg-primary-fixed', 'text-primary');" class="p-1 hover:text-error text-on-surface-variant rounded-lg hover:bg-error-container/20 transition-colors flex items-center justify-center" title="Cerrar panel">
+          <span class="material-symbols-outlined text-body-md" data-icon="close">close</span>
+        </button>
+      </div>
+    </div>
+    <div class="flex items-center justify-between text-outline">
+      <span class="font-label-code-sm text-label-code-sm flex items-center gap-1">
+        <span class="material-symbols-outlined text-label-code-sm text-secondary" data-icon="sensors">sensors</span>
+        [INTERCEPTOR STREAM: pywebview.evaluate_js]
+      </span>
+      <span class="font-label-code-sm text-label-code-sm text-tertiary font-bold" id="log-line-counter">0 LÍNEAS (MÁX 100)</span>
+    </div>
+  </div>
+
+  <!-- Terminal Content Viewport -->
+  <div class="flex-1 p-3 bg-surface-container-lowest dot-matrix overflow-hidden flex flex-col">
+    <div id="terminal-content" class="flex-1 bg-surface-container-low/80 p-3 rounded-xl border border-outline-variant/20 font-mono text-xs overflow-y-auto flex flex-col gap-1.5 selection:bg-primary selection:text-on-primary">
+      <div class="text-outline/70 italic flex items-center gap-1.5 border-b border-outline-variant/20 pb-1.5 mb-0.5 font-label-code-sm">
+        <span class="material-symbols-outlined text-label-code-sm text-secondary" data-icon="info">info</span>
+        <span>[SYS] Sentinel Log Interceptor activo. Esperando trazas de ejecución...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Terminal Footer Bar -->
+  <div class="px-4 py-2 bg-surface-container-low border-t border-outline-variant/20 flex items-center justify-between font-label-code-sm text-label-code-sm">
+    <div class="flex items-center gap-2 text-on-surface-variant">
+      <span class="w-2 h-2 rounded-full bg-secondary inline-block"></span>
+      <span>WebViewLogHandler · logging.INFO</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="btn-copy-terminal" class="px-2.5 py-1 bg-surface-container hover:bg-surface-container-high text-on-surface rounded-lg border border-outline-variant/30 flex items-center gap-1 active:scale-95 transition-all">
+        <span class="material-symbols-outlined text-body-sm" data-icon="content_copy">content_copy</span>
+        <span id="btn-copy-terminal-text">Copiar Logs</span>
+      </button>
+    </div>
+  </div>
+</div>
 </body></html>

@@ -19,7 +19,7 @@ from herramientas import (
 )
 from memoria import guardar_nota, buscar_nota
 from memoria_rag import construir_indice, obtener_cantidad_fragmentos
-from interfaz import ControladorPanel, InterfazAPI
+from interfaz import ControladorPanel, InterfazAPI, WebViewLogHandler
 from config import (
     MODELO_WHISPER,
     PALABRA_ACTIVACION,
@@ -290,6 +290,11 @@ if __name__ == "__main__":
         height=900,
         js_api=api_js,
     )
+    # Asegurarnos de que el logger raíz envíe datos a la UI
+    handler_ui = WebViewLogHandler(ventana)
+    handler_ui.setLevel(logging.INFO)
+    logging.getLogger().addHandler(handler_ui)
+
     ventana.events.closed += lambda: evento_apagar.set()
     # Conecta el controlador de UI con la ventana nativa
     panel.ventana = ventana
