@@ -1,11 +1,11 @@
 import logging
 import sys
 import ollama
-from config import MODELO_LLM, SYSTEM_PROMPT
+import config
+from config import MODELO_LLM, SYSTEM_PROMPT, configurar_consola
+from herramientas import MAPA_APLICACIONES
 
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
+configurar_consola()
 
 ESQUEMAS_HERRAMIENTAS = [
     {
@@ -23,7 +23,7 @@ ESQUEMAS_HERRAMIENTAS = [
         "type": "function",
         "function": {
             "name": "obtener_temperatura",
-            "description": "Lee estrictamente la temperatura del hardware del PC (CPU/GPU). NO usar para el clima exterior.",
+            "description": "Obtiene la temperatura de los sensores de la CPU y sistema.",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -34,7 +34,7 @@ ESQUEMAS_HERRAMIENTAS = [
         "type": "function",
         "function": {
             "name": "abrir_aplicacion",
-            "description": "Abre una aplicación permitida en Windows (por ejemplo calculadora, notepad, vscode, chrome).",
+            "description": f"Abre una aplicación. Aplicaciones permitidas: {', '.join(MAPA_APLICACIONES.keys())}",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -72,7 +72,7 @@ ESQUEMAS_HERRAMIENTAS = [
         "type": "function",
         "function": {
             "name": "buscar_nota",
-            "description": "Busca una coincidencia exacta de una palabra clave en los títulos de las notas. NO usar para preguntas semánticas o conceptuales.",
+            "description": "Búsqueda literal por palabra clave en títulos y contenido de las notas. Para preguntas conceptuales usa consultar_boveda.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -89,7 +89,7 @@ ESQUEMAS_HERRAMIENTAS = [
         "type": "function",
         "function": {
             "name": "obtener_clima",
-            "description": "Consulta estrictamente el clima exterior y la temperatura ambiente en Tehuacán.",
+            "description": f"Consulta estrictamente el clima exterior y la temperatura ambiente en {config.CIUDAD_POR_DEFECTO}.",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -129,26 +129,34 @@ def _mensaje_a_dict(mensaje) -> dict:
         resultado["tool_calls"] = tool_calls
     return resultado
 
-def procesar_pensamiento(contexto: list, permitir_herramientas: bool = True, modelo: str = MODELO_LLM) -> dict:
+class ErrorLLM(Exception):
+    pass
+
+
+def procesar_pensamiento(mensajes: list, modelo: str = MODELO_LLM, usar_tools: bool = True, **kwargs) -> dict:
     """
     Envía una lista de mensajes a Ollama con tool calling nativo
     y retorna el objeto completo del mensaje de respuesta.
-    Si permitir_herramientas es False, no se envían herramientas para forzar respuesta de texto.
+    Si usar_tools es False, no se envían herramientas para forzar respuesta de texto.
     """
+    if "permitir_herramientas" in kwargs:
+        usar_tools = kwargs["permitir_herramientas"]
     try:
-        argumentos = {
-            "model": modelo,
-            "messages": contexto,
-        }
-        if permitir_herramientas:
-            argumentos["tools"] = ESQUEMAS_HERRAMIENTAS
-
-        response = ollama.chat(**argumentos)
+        response = ollama.chat(
+            model=modelo,
+            messages=mensajes,
+            tools=ESQUEMAS_HERRAMIENTAS if usar_tools else None,
+            options=config.LLM_OPCIONES,
+            keep_alive=config.LLM_KEEP_ALIVE,
+        )
+        eval_count = response.get("eval_count", 0)
+        eval_duration = response.get("eval_duration", 1) or 1
+        tps = eval_count / (eval_duration / 1e9)
+        logging.info(f"Ollama TPS: {tps:.2f} | Contexto usado: {response.get('prompt_eval_count', 0)} tokens")
         return _mensaje_a_dict(response["message"])
     except Exception as e:
-        error_msg = f"[X] Error al comunicarse con Ollama: {e}"
-        logging.error(error_msg)
-        return {"role": "assistant", "content": error_msg}
+        logging.error("Error al comunicarse con Ollama: %s", e)
+        raise ErrorLLM(str(e)) from e
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")

@@ -1,0 +1,16 @@
+ollama
+openai-whisper
+SpeechRecognition
+PyAudio
+psutil
+requests
+pygame
+sentence-transformers
+faiss-cpu
+numpy
+tqdm
+pywebview
+thefuzz
+edge-tts
+pytest
+pip-tools

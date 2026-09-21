@@ -3,22 +3,21 @@ import os
 import shutil
 import subprocess
 import sys
+from urllib.parse import quote
 import psutil
 import requests
 import config
-from config import MAPA_APLICACIONES
+from config import MAPA_APLICACIONES, configurar_consola
 from memoria_rag import buscar_en_notas
 
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
+configurar_consola()
 
 def obtener_estado_sistema() -> str:
     """
     Obtiene y formatea un resumen del estado actual del sistema:
     - Porcentaje de uso de CPU.
     - Porcentaje y cantidad en GB de memoria RAM (usada/total).
-    - Porcentaje y espacio en el disco principal C:.
+    - Porcentaje y espacio en el disco principal C: (GB usados/totales).
     """
     try:
         # Uso de CPU (intervalo breve para medición representativa)
@@ -41,7 +40,7 @@ def obtener_estado_sistema() -> str:
             f"Estado del sistema:\n"
             f"- CPU: {cpu_uso:.1f}% de uso.\n"
             f"- Memoria RAM: {ram_uso_pct:.1f}% en uso ({ram_usada_gb:.2f} GB de {ram_total_gb:.2f} GB).\n"
-            f"- Disco principal (C:): {disco_uso_pct:.1f}% en uso ({disco_usado_gb:.2f} GB de {disco_total_gb:.2f} GB libres/totales)."
+            f"- Disco principal (C:): {disco_uso_pct:.1f}% en uso ({disco_usado_gb:.2f} GB de {disco_total_gb:.2f} GB usados/totales)."
         )
         return resumen
 
@@ -51,7 +50,8 @@ def obtener_estado_sistema() -> str:
 
 def obtener_temperatura() -> str:
     """
-    Intenta leer la temperatura de los sensores del sistema usando psutil o comandos WMI/PowerShell en Windows.
+    Obtiene la temperatura de los sensores de la CPU y zona térmica del sistema.
+    Intenta leer usando psutil o comandos WMI/PowerShell en Windows.
     Si no hay sensores accesibles, retorna un mensaje amable indicando el uso de CPU y que
     la lectura directa de temperatura requiere permisos elevados.
     """
@@ -102,10 +102,12 @@ def obtener_temperatura() -> str:
         f"Sin embargo, el procesador está al {cpu_uso:.1f}% de uso, operando con normalidad."
     )
 
-def abrir_aplicacion(nombre_app: str = "", app_name: str = "") -> str:
+def abrir_aplicacion(app_name: str = "", nombre_app: str = "") -> str:
     """
-    Abre una aplicación en Windows solo si está en la lista permitida (allowlist)
-    y el ejecutable existe en el PATH o en disco, usando os.startfile de forma nativa sin shell.
+    Abre una aplicación en Windows solo si está en la lista permitida (allowlist).
+    Verifica si el ejecutable está en el PATH con shutil.which. Si existe,
+    lo abre con subprocess.Popen([ruta]). Si no (es una app registrada de Windows como 'calc' o 'spotify'),
+    usa os.startfile(ejecutable).
     """
     nombre = (app_name or nombre_app or "").strip()
     if not nombre:
@@ -117,13 +119,15 @@ def abrir_aplicacion(nombre_app: str = "", app_name: str = "") -> str:
         return f"La aplicación '{nombre}' no está permitida."
 
     ejecutable = MAPA_APLICACIONES[app_limpia]
-    ruta_ejecutable = shutil.which(ejecutable) or (ejecutable if os.path.exists(ejecutable) else None)
-
-    if not ruta_ejecutable:
-        return "Error: La aplicación no se encuentra instalada o la ruta es inválida."
 
     try:
-        os.startfile(ruta_ejecutable)
+        ruta = shutil.which(ejecutable)
+        if ruta:
+            subprocess.Popen([ruta])
+        else:
+            os.startfile(ejecutable)
+
+        logging.info(f"App lanzada de forma segura: {nombre}")
         return f"Abriendo {nombre} correctamente."
     except Exception as e:
         logging.error("Error al intentar ejecutar '%s': %s", nombre, e)
@@ -132,10 +136,11 @@ def abrir_aplicacion(nombre_app: str = "", app_name: str = "") -> str:
 def obtener_clima() -> str:
     """
     Obtiene el clima actual y la temperatura consultando la API de wttr.in
-    utilizando la URL configurada en config.py.
+    utilizando la ciudad por defecto configurada en config.py.
     """
     try:
-        respuesta = requests.get(config.URL_CLIMA, timeout=5)
+        url = f"https://wttr.in/{quote(config.CIUDAD_POR_DEFECTO)}?format=%C+%t"
+        respuesta = requests.get(url, timeout=5)
         if respuesta.status_code == 200:
             texto = respuesta.text.strip()
             texto_lower = texto.lower()

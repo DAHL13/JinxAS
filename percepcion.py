@@ -2,9 +2,9 @@ import logging
 import re
 import sys
 import numpy as np
-# pyrefly: ignore [missing-import]
 import speech_recognition as sr
 import whisper
+from thefuzz import fuzz
 import config
 from config import (
     IDIOMA_WHISPER,
@@ -13,14 +13,23 @@ from config import (
     PHRASE_TIME_LIMIT,
     PROMPT_INICIAL_WHISPER,
     TIEMPO_MAXIMO_ESCUCHA,
+    configurar_consola,
 )
 
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
+configurar_consola()
 
 _MODELO_CENTINELA = None
 _MODELO_COMANDO = None
+
+_RECOGNIZER = sr.Recognizer()
+_RECOGNIZER.energy_threshold = 300
+_RECOGNIZER.dynamic_energy_threshold = True
+_RECOGNIZER.dynamic_energy_adjustment_damping = 0.15
+_RECOGNIZER.pause_threshold = 0.8
+
+def coincide_wakeword(texto: str, variantes: list, umbral: int = 80) -> bool:
+    # Compara cada palabra del texto transcrito contra las variantes aceptadas
+    return any(fuzz.ratio(p.lower(), v.lower()) >= umbral for p in texto.split() for v in variantes)
 
 def _obtener_modelo_comando(nombre_modelo: str = "small"):
     """
@@ -49,9 +58,7 @@ def esperar_palabra_activacion(
         _MODELO_CENTINELA = whisper.load_model(config.MODELO_WAKEWORD)
     modelo_centinela = _MODELO_CENTINELA
 
-    recognizer = sr.Recognizer()
-    recognizer.energy_threshold = 300
-    recognizer.dynamic_energy_threshold = True
+    recognizer = _RECOGNIZER
 
     variantes = list(config.VARIANTES_WAKEWORD)
     if variaciones:
@@ -74,8 +81,6 @@ def esperar_palabra_activacion(
                     # Captura ráfagas cortas con VAD nativo para esperar en silencio sin saturar CPU
                     audio = recognizer.listen(source, timeout=1, phrase_time_limit=3)
                 except sr.WaitTimeoutError:
-                    continue
-                except sr.UnknownValueError:
                     continue
 
                 if evento_apagar and evento_apagar.is_set():
@@ -106,17 +111,14 @@ def esperar_palabra_activacion(
                     texto_limpio = re.sub(r"[^\w\s]", "", texto_limpio)
                     texto_limpio = re.sub(r"\s+", " ", texto_limpio).strip()
 
-                    # Verificar si ALGUNA de las palabras en config.VARIANTES_WAKEWORD está en el texto
-                    palabras_texto = texto_limpio.split()
-                    coincidencia = any(var in palabras_texto for var in variantes)
+                    # Verificar si coincide con el wake word usando fuzzy matching
+                    coincidencia = coincide_wakeword(texto_limpio, variantes)
 
                     if coincidencia:
                         logging.info("¡Palabra de activación detectada con éxito! ('%s')", texto_detectado)
                         if panel: panel.actualizar_satelite(1, 1, "Micrófono", "Detectado: ¡Jinx!")
                         return True
 
-                except sr.UnknownValueError:
-                    continue
                 except Exception as e:
                     logging.debug("Ráfaga de audio no procesada o descartada: %s", e)
                     continue
@@ -155,7 +157,7 @@ def limpiar_texto_transcrito(texto: str) -> str:
 def escuchar_y_transcribir(
     modelo=MODELO_WHISPER,
     tiempo_maximo=TIEMPO_MAXIMO_ESCUCHA,
-    phrase_time_limit=PHRASE_TIME_LIMIT,
+    phrase_time_limit=15,
     initial_prompt=PROMPT_INICIAL_WHISPER,
     evento_apagar=None,
     panel=None,
@@ -168,13 +170,7 @@ def escuchar_y_transcribir(
     if evento_apagar and evento_apagar.is_set():
         return None
 
-    recognizer = sr.Recognizer()
-
-    # Ajustes finos de reconocimiento
-    recognizer.energy_threshold = 300
-    recognizer.dynamic_energy_threshold = True
-    recognizer.dynamic_energy_adjustment_damping = 0.15
-    recognizer.pause_threshold = 0.8  # Pausa tras la cual se considera finalizada la frase
+    recognizer = _RECOGNIZER
 
     logging.info("Módulo de percepción - asistente de voz local")
 
@@ -182,14 +178,14 @@ def escuchar_y_transcribir(
         with sr.Microphone() as source:
             logging.info("Escuchando... (habla ahora, máximo %s segundos)", phrase_time_limit)
             if panel:
-                panel.actualizar_satelite(2, 1, "Micrófono", "Escuchando (8s)...")
+                panel.actualizar_satelite(2, 1, "Micrófono", f"Escuchando ({phrase_time_limit}s)...")
                 panel.actualizar_satelite(2, 2, "Modelo Whisper", "small (en caché)")
             try:
                 # Escuchar con límite de tiempo y tiempo máximo de frase
                 audio = recognizer.listen(
                     source,
                     timeout=tiempo_maximo,
-                    phrase_time_limit=phrase_time_limit,
+                    phrase_time_limit=15,
                 )
                 logging.info("Audio capturado exitosamente. Procesando con Whisper...")
 

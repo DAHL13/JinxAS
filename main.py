@@ -1,11 +1,14 @@
 import json
 import logging
+import re
 import sys
 import threading
 import time
+import unicodedata
 import webview
+import config
 from percepcion import escuchar_y_transcribir, esperar_palabra_activacion
-from cerebro import procesar_pensamiento
+from cerebro import procesar_pensamiento, ErrorLLM
 from voz import reproducir_voz
 from herramientas import (
     obtener_estado_sistema,
@@ -23,11 +26,13 @@ from config import (
     PHRASE_TIME_LIMIT,
     SYSTEM_PROMPT,
     TIEMPO_MAXIMO_ESCUCHA,
+    COMANDOS_SALIDA,
+    FRASES_REINICIO,
+    MAX_RONDAS_TOOLS,
+    configurar_consola,
 )
 
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
+configurar_consola()
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 
@@ -45,6 +50,19 @@ FUNCIONES_DISPONIBLES = {
     "obtener_clima": obtener_clima,
     "consultar_boveda": consultar_boveda,
 }
+
+def normalizar(texto: str) -> str:
+    """
+    Pasa el texto a minúsculas, quita tildes (NFD sin categoría 'Mn'),
+    elimina signos de puntuación y colapsa espacios múltiples.
+    """
+    if not texto:
+        return ""
+    texto = texto.lower()
+    texto = "".join(c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn")
+    texto = re.sub(r"[^\w\s]", "", texto)
+    texto = re.sub(r"\s+", " ", texto).strip()
+    return texto
 
 def _extraer_llamada(tool_call) -> tuple:
     if isinstance(tool_call, dict):
@@ -64,6 +82,48 @@ def _extraer_llamada(tool_call) -> tuple:
     if not isinstance(argumentos, dict):
         argumentos = {}
     return nombre, argumentos
+
+def _ejecutar_herramienta(nombre_fn: str, argumentos: dict) -> str:
+    logging.info("Herramienta solicitada: %s %s", nombre_fn, argumentos)
+    if panel:
+        panel.actualizar_satelite(3, 2, "Ejecutando Tool", nombre_fn)
+    funcion = FUNCIONES_DISPONIBLES.get(nombre_fn)
+    try:
+        if funcion is None:
+            resultado = f"Herramienta no permitida: {nombre_fn}"
+        else:
+            resultado = str(funcion(**argumentos))
+    except Exception as e:
+        logging.error("Error al ejecutar %s: %s", nombre_fn, e)
+        resultado = f"Error al ejecutar {nombre_fn}: {e}"
+    logging.info("Resultado: %s", resultado)
+    return resultado
+
+def ejecutar_turno(contexto: list) -> str:
+    respuesta = {}
+    for ronda in range(config.MAX_RONDAS_TOOLS):
+        ultima = (ronda == config.MAX_RONDAS_TOOLS - 1)
+        respuesta = procesar_pensamiento(contexto, usar_tools=not ultima)
+        contexto.append(respuesta)
+        tool_calls = respuesta.get("tool_calls")
+        if tool_calls:
+            for tool_call in tool_calls:
+                nombre_fn, argumentos = _extraer_llamada(tool_call)
+                resultado = _ejecutar_herramienta(nombre_fn, argumentos)
+                resultado_seguro = f"<datos_herramienta nombre='{nombre_fn}'>\n{str(resultado)[:1500]}\n</datos_herramienta>"
+                contexto.append({"role": "tool", "content": resultado_seguro})
+            if panel:
+                panel.actualizar_satelite(3, 1, "Inferencia", "Sintetizando razonamiento...")
+                panel.actualizar_satelite(3, 2, "qwen2.5:3b", "Tool completada")
+        else:
+            break
+
+    texto_final = (respuesta.get("content") or "").strip()
+    if not texto_final:
+        texto_final = "No pude completar eso."
+        if respuesta.get("role") == "assistant" and not respuesta.get("content"):
+            respuesta["content"] = texto_final
+    return texto_final
 
 def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None, api_js=None):
     if evento_apagar is None:
@@ -122,22 +182,19 @@ def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None, api_
 
             if texto_usuario and texto_usuario.strip():
                 texto_reconocido = texto_usuario.strip()
-                texto_limpio = texto_reconocido.lower()
-                palabras_salida = ["salir", "cancelar", "apagar", "detener"]
 
-                if any(palabra in texto_limpio for palabra in palabras_salida):
+                if normalizar(texto_reconocido) in config.COMANDOS_SALIDA:
                     logging.info("Cerrando asistente Jinx...")
                     reproducir_voz("Hasta luego, apagando sistema.")
                     evento_apagar.set()
                     try:
-                        if panel.ventana:
+                        if panel and getattr(panel, "ventana", None):
                             panel.ventana.destroy()
                     except Exception:
                         pass
                     break
 
-                frases_reinicio = ["olvida todo", "borra la memoria", "nueva conversación"]
-                if any(frase in texto_limpio for frase in frases_reinicio):
+                if normalizar(texto_reconocido) in config.FRASES_REINICIO:
                     logging.info("Reiniciando memoria de conversación...")
                     contexto = [{"role": "system", "content": SYSTEM_PROMPT}]
                     # Reasignar la nueva lista al api_js para que Emergency Flush siga operativo
@@ -163,42 +220,15 @@ def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None, api_
                 contexto = [contexto[0]] + cola
                 if panel:
                     panel.actualizar_satelite(3, 1, "Contexto RAM", f"{len(contexto)} mensajes")
+                if api_js is not None:
+                    api_js.contexto = contexto
 
-                respuesta = procesar_pensamiento(contexto)
-                contexto.append(respuesta)
-
-                if respuesta.get("tool_calls"):
-                    for tool_call in respuesta["tool_calls"]:
-                        nombre_fn, argumentos = _extraer_llamada(tool_call)
-                        logging.info("Herramienta solicitada: %s %s", nombre_fn, argumentos)
-                        panel.actualizar_satelite(3, 2, "Ejecutando Tool", nombre_fn)
-                        funcion = FUNCIONES_DISPONIBLES.get(nombre_fn)
-                        try:
-                            if funcion is None:
-                                resultado = f"Herramienta no permitida: {nombre_fn}"
-                            else:
-                                resultado = funcion(**argumentos)
-                        except Exception as e:
-                            logging.error("Error al ejecutar %s: %s", nombre_fn, e)
-                            resultado = f"Error al ejecutar {nombre_fn}: {e}"
-                        logging.info("Resultado: %s", resultado)
-                        contexto.append({"role": "tool", "content": str(resultado)})
-
-                    logging.info("Jinx generando frase final hablada...")
-                    panel.actualizar_satelite(3, 1, "Inferencia", "Sintetizando razonamiento...")
-                    panel.actualizar_satelite(3, 2, "qwen2.5:3b", "Tool completada")
-                    respuesta = procesar_pensamiento(contexto, permitir_herramientas=False)
-                    texto_final = (respuesta.get("content") or "").strip() if isinstance(respuesta, dict) else str(respuesta).strip()
-                    if not texto_final or texto_final.strip() == "":
-                        texto_final = "Comando ejecutado."
-                    if isinstance(respuesta, dict):
-                        respuesta["content"] = texto_final
-                else:
-                    texto_final = (respuesta.get("content") or "").strip()
-
-                # Agregar la respuesta final al contexto solo si no está ya registrada
-                if contexto[-1] != respuesta:
-                    contexto.append(respuesta)
+                n_previo = len(contexto)
+                try:
+                    texto_final = ejecutar_turno(contexto)
+                except ErrorLLM:
+                    del contexto[n_previo:]
+                    texto_final = "No puedo pensar ahora mismo, revisa que Ollama esté corriendo."
 
                 logging.info("Respuesta Jinx: %s", texto_final)
 
@@ -235,7 +265,7 @@ def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None, api_
             logging.info("Cerrando asistente Jinx...")
             evento_apagar.set()
             try:
-                if panel.ventana:
+                if panel and getattr(panel, "ventana", None):
                     panel.ventana.destroy()
             except Exception:
                 pass

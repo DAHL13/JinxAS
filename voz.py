@@ -5,14 +5,12 @@ import tempfile
 import time
 import asyncio
 import edge_tts
-from config import VOZ_TTS
+from config import VOZ_TTS, configurar_consola
+
+configurar_consola()
 
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 import pygame
-
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
 
 async def _generar_audio_edge(texto: str, voz: str, archivo: str):
     comunicador = edge_tts.Communicate(texto, voz)

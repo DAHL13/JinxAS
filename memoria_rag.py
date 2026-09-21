@@ -51,60 +51,44 @@ def _dividir_en_chunks(texto: str, nombre_archivo: str) -> list:
     chunks = []
     inicio = 0
     longitud = len(texto)
+    titulo = os.path.splitext(nombre_archivo)[0]
     while inicio < longitud:
         fin = min(inicio + CHUNK_TAMANO, longitud)
         fragmento = texto[inicio:fin].strip()
         if fragmento:
-            chunks.append((fragmento, nombre_archivo))
+            chunks.append((f"{titulo}\n{fragmento}", nombre_archivo))
         inicio += CHUNK_TAMANO - CHUNK_SOLAPAMIENTO
     return chunks
 
 
-def agregar_nota_al_indice(ruta_archivo: str, contenido: str) -> None:
+def agregar_nota_al_indice(ruta_archivo: str = None, contenido: str = None) -> None:
     """
     Sincroniza en tiempo real el índice vectorial en memoria cuando se crea
     o actualiza una nota en la bóveda durante la sesión.
+    Reconstruye el índice completo para evitar fragmentos obsoletos y duplicados.
     """
-    global _indice, _fragmentos, _origenes
-
-    if _indice is None or _fragmentos is None:
-        return
-
-    if not contenido or not contenido.strip():
-        return
-
-    nombre_archivo = os.path.basename(ruta_archivo)
-
-    pares_chunks = _dividir_en_chunks(contenido, nombre_archivo)
-    chunks = [p[0] for p in pares_chunks]
-    if not chunks:
-        return
-
-    modelo = _obtener_modelo()
-    embeddings = modelo.encode(
-        chunks,
-        batch_size=32,
-        show_progress_bar=False,
-        convert_to_numpy=True,
-        normalize_embeddings=True,
-    ).astype(np.float32)
-
-    _indice.add(embeddings)
-
-    _fragmentos.extend([{"archivo": nombre_archivo, "texto": chunk} for chunk in chunks])
-    _origenes.extend([nombre_archivo for _ in chunks])
-
-    logging.info("[RAG] Nota '%s' añadida al índice en memoria (%d fragmentos).", nombre_archivo, len(chunks))
+    logging.info("[RAG] Reindexando bóveda tras actualización de nota...")
+    construir_indice()
 
 
 def construir_indice(panel=None) -> int:
     """
     Recorre recursivamente config.RUTA_VAULT buscando archivos .md,
-    genera embeddings y construye un índice FAISS IndexFlatL2.
+    genera embeddings y construye un índice FAISS IndexFlatIP con IndexIDMap2.
     Los resultados se almacenan en variables globales para consultas rápidas.
     Devuelve la cantidad total de fragmentos indexados.
     """
     global _indice, _fragmentos, _origenes
+
+    modelo = _obtener_modelo()
+    dim = (
+        modelo.get_embedding_dimension()
+        if hasattr(modelo, "get_embedding_dimension")
+        else modelo.get_sentence_embedding_dimension()
+    )
+    _indice = faiss.IndexIDMap2(faiss.IndexFlatIP(dim))
+    _fragmentos = []
+    _origenes = []
 
     ruta_vault = config.RUTA_VAULT
     logging.info("[RAG] Iniciando construcción del índice sobre: %s", ruta_vault)
@@ -113,9 +97,6 @@ def construir_indice(panel=None) -> int:
         logging.warning(
             "[RAG] La bóveda no existe en '%s'. El índice quedará vacío.", ruta_vault
         )
-        _indice = None
-        _fragmentos = []
-        _origenes = []
         if panel:
             panel.actualizar_satelite(3, 3, "Memoria RAG", "Bóveda no encontrada")
         return 0
@@ -132,10 +113,9 @@ def construir_indice(panel=None) -> int:
 
     if not archivos_md:
         logging.warning("[RAG] No se encontraron archivos .md en la bóveda.")
-        _indice = None
-        _fragmentos = []
-        _origenes = []
-        return
+        if panel:
+            panel.actualizar_satelite(3, 3, "Memoria RAG", "0 Chunks")
+        return 0
 
     todos_los_chunks: list = []
     for raiz, nombre in tqdm(archivos_md, desc="Vectorizando notas"):
@@ -152,16 +132,14 @@ def construir_indice(panel=None) -> int:
 
     if not todos_los_chunks:
         logging.warning("[RAG] No se encontraron fragmentos. El índice quedará vacío.")
-        _indice = None
-        _fragmentos = []
-        _origenes = []
-        return
+        if panel:
+            panel.actualizar_satelite(3, 3, "Memoria RAG", "0 Chunks")
+        return 0
 
     textos = [c[0] for c in todos_los_chunks]
     origenes = [c[1] for c in todos_los_chunks]
 
     logging.info("[RAG] Generando embeddings para %d fragmentos...", len(textos))
-    modelo = _obtener_modelo()
     vectores = modelo.encode(
         textos,
         batch_size=32,
@@ -170,11 +148,9 @@ def construir_indice(panel=None) -> int:
         normalize_embeddings=True,
     ).astype(np.float32)
 
-    dimension = vectores.shape[1]
-    indice = faiss.IndexFlatL2(dimension)
-    indice.add(vectores)
+    ids = np.arange(len(vectores), dtype=np.int64)
+    _indice.add_with_ids(vectores, ids)
 
-    _indice = indice
     _fragmentos = [{"archivo": orig, "texto": txt} for txt, orig in zip(textos, origenes)]
     _origenes = origenes
 
@@ -198,7 +174,8 @@ def obtener_cantidad_fragmentos() -> int:
 def buscar_en_notas(consulta: str, top_k: int = 3) -> str:
     """
     Vectoriza `consulta`, busca los `top_k` fragmentos más cercanos en el índice FAISS
-    y devuelve un string formateado con el texto y su archivo de origen.
+    (IndexFlatIP con similitud coseno) y devuelve un string formateado con el texto y su archivo de origen.
+    Filtra resultados donde score >= config.UMBRAL_SIMILITUD_RAG.
 
     Parámetros
     ----------
@@ -237,7 +214,7 @@ def buscar_en_notas(consulta: str, top_k: int = 3) -> str:
         for dist, idx in zip(distancias[0], indices[0]):
             if idx < 0 or idx >= len(_fragmentos):
                 continue
-            if dist > config.UMBRAL_DISTANCIA_RAG:
+            if dist < config.UMBRAL_SIMILITUD_RAG:
                 continue
             frag = _fragmentos[idx]
             texto_chunk = frag["texto"]
@@ -256,3 +233,7 @@ def buscar_en_notas(consulta: str, top_k: int = 3) -> str:
     except Exception as e:
         logging.error("[RAG] Error durante la búsqueda: %s", e)
         return f"Error durante la búsqueda en la bóveda: {e}"
+
+
+# Alias para compatibilidad directa
+consultar_boveda = buscar_en_notas

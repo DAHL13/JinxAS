@@ -3,28 +3,33 @@ import os
 import re
 import sys
 from datetime import datetime
-from config import RUTA_VAULT, TITULO_NOTA_MAX
+from config import RUTA_VAULT, TITULO_NOTA_MAX, configurar_consola
 from memoria_rag import agregar_nota_al_indice
 
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
+configurar_consola()
 
 def _normalizar_nombre_archivo(titulo: str) -> str:
     """
     Convierte un título a un nombre de archivo válido en formato .md.
-    Elimina caracteres no permitidos en nombres de archivo de Windows.
+    Elimina caracteres no permitidos en nombres de archivo de Windows y nombres reservados.
     """
+    RESERVADOS = {
+        "con", "prn", "aux", "nul",
+        "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+        "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+    }
     nombre = titulo.strip()
+    if nombre.lower().endswith(".md"):
+        nombre = nombre[:-3]
     # Reemplazar caracteres no permitidos en Windows: \ / : * ? " < > |
     nombre = re.sub(r'[\\/:*?"<>|]', '', nombre)
     # Reemplazar espacios múltiples con uno solo
     nombre = re.sub(r'\s+', ' ', nombre)
     nombre = nombre[:TITULO_NOTA_MAX]
-    # Asegurarse de que termine en .md
-    if not nombre.lower().endswith('.md'):
-        nombre = nombre + '.md'
-    return nombre
+    base = nombre.rstrip(" .") or "Sin titulo"
+    if base.lower() in RESERVADOS:
+        base = f"{base}_"
+    return f"{base}.md"
 
 def guardar_nota(titulo: str, contenido: str) -> str:
     """
@@ -39,6 +44,13 @@ def guardar_nota(titulo: str, contenido: str) -> str:
     os.makedirs(RUTA_VAULT, exist_ok=True)
     nombre_archivo = _normalizar_nombre_archivo(titulo)
     ruta_archivo = os.path.join(RUTA_VAULT, nombre_archivo)
+
+    # Confinamiento de ruta dentro de la bóveda
+    ruta_vault_abs = os.path.abspath(RUTA_VAULT)
+    ruta_archivo_abs = os.path.abspath(ruta_archivo)
+    if os.path.commonpath([ruta_vault_abs, ruta_archivo_abs]) != ruta_vault_abs:
+        return "Error: Título no válido."
+
     ahora = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     try:
@@ -71,30 +83,38 @@ def guardar_nota(titulo: str, contenido: str) -> str:
 def buscar_nota(palabra_clave: str) -> str:
     """
     Busca coincidencias de una palabra clave en los títulos y contenidos
-    de todos los archivos .md dentro de RUTA_VAULT.
+    de todos los archivos .md dentro de RUTA_VAULT (recorrido recursivo).
     Retorna un resumen del contenido encontrado o un aviso si no hay registros.
     """
     if not palabra_clave or not palabra_clave.strip():
         return "No se proporcionó una palabra clave para buscar."
 
+    if not os.path.isdir(RUTA_VAULT):
+        return "La bóveda está vacía. No hay notas guardadas aún."
+
     clave = palabra_clave.strip().lower()
     resultados = []
 
+    archivos_md = []
     try:
-        archivos_md = [f for f in os.listdir(RUTA_VAULT) if f.lower().endswith('.md')]
+        for raiz, dirs, archivos in os.walk(RUTA_VAULT):
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
+            for archivo in archivos:
+                if archivo.lower().endswith('.md') and not archivo.startswith('.'):
+                    archivos_md.append((raiz, archivo))
     except Exception as e:
         logging.error("Error al acceder a la bóveda: %s", e)
         return f"Error al acceder a la bóveda: {e}"
 
     if not archivos_md:
-        return f"La bóveda está vacía. No hay notas guardadas aún."
+        return "La bóveda está vacía. No hay notas guardadas aún."
 
-    for archivo in archivos_md:
-        titulo_archivo = archivo.replace('.md', '')
-        ruta_archivo = os.path.join(RUTA_VAULT, archivo)
+    for raiz, archivo in archivos_md:
+        titulo_archivo = os.path.splitext(archivo)[0]
+        ruta_archivo = os.path.join(raiz, archivo)
 
         try:
-            with open(ruta_archivo, "r", encoding="utf-8") as f:
+            with open(ruta_archivo, "r", encoding="utf-8", errors="ignore") as f:
                 contenido = f.read()
 
             coincidencia_titulo = clave in titulo_archivo.lower()

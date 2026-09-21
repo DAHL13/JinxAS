@@ -9,6 +9,7 @@ __pycache__/
 *.pyo
 *.pyd
 *.pycache
+.pytest_cache/
 
 # Archivos de audio temporales
 *.mp3
@@ -27,5 +28,14 @@ Boveda_Obsidian/
 *.log
 *.tmp
 
-# Variables de entorno
+# FAISS e índices
+*.faiss
+.cache/
+
+# Modelos descargados (si aplica)
+models/
+
+# Configuraciones locales
+config_local.py
 .env
+
