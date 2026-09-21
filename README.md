@@ -11,7 +11,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/DAHL13/JinxAS/actions/workflows/ci.yml/badge.svg)](https://github.com/DAHL13/JinxAS/actions)
 
-> ⚡ **Jinx combina un núcleo de Inteligencia Artificial que procesa, recuerda y razona 100% en local con servicios de red específicos para tareas auxiliares.** 🧠 Reconoce su propia palabra de activación, 🗣️ mantiene el hilo de la conversación, 🔒 ejecuta acciones reales en tu sistema con validación de seguridad estricta, y 📚 puede consultar tus propios apuntes de Obsidian por significado — todo corriendo en tu máquina sin enviar tus datos a nubes de inferencia. 💪
+> ⚡ **Jinx combina un núcleo de Inteligencia Artificial que procesa, recuerda y razona 100% en local con servicios de red específicos para tareas auxiliares.**  Reconoce su propia palabra de activación,  mantiene el hilo de la conversación,  ejecuta acciones reales en tu sistema con validación de seguridad estricta, y  puede consultar tus propios apuntes de Obsidian por significado — todo corriendo en tu máquina sin enviar tus datos a nubes de inferencia. 
 
 > **Jinx** es un asistente de voz modular con procesamiento local para STT (Whisper), razonamiento LLM (Qwen 2.5 3B vía Ollama) usando **tool calling nativo**, y memoria semántica RAG (FAISS). Ejecuta acciones en tu sistema de forma segura, recuerda la conversación mientras hablas con él, consulta tus notas de Obsidian por significado y te responde con voz sintetizada en tiempo real.
 
