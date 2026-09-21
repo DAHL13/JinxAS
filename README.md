@@ -234,12 +234,31 @@ JinxAS/
 
 ## 🗺️ Roadmap
 
+### Roadmap histórico (completado)
+
 - ✅ **Fase 1** — Memoria de conversación persistente durante la sesión.
 - ✅ **Fase 2** — Tool calling nativo, configuración centralizada, logging estructurado.
 - ✅ **Fase 3** — Wake Word ("Jinx") con Modo Centinela y coincidencia difusa, clima dinámico y memoria semántica RAG (FAISS + embeddings multilingües).
 - ✅ **Fase 4** — Seguridad en ejecución de herramientas (sin inyecciones de shell), mitigación de inyecciones de prompt indirectas y opciones optimizadas de Ollama.
 - ✅ **Fase 5** — Panel visual SENTINEL e interfaz nativa con `pywebview`, visualización del pipeline en tiempo real y API bidireccional.
 - ✅ **Fase 6** — Higiene y robustez: centralización UTF-8 en Windows, suite de tests unitarios de lógica pura (`pytest`), CI automatizado en GitHub Actions y documentación transparente.
+
+### 🔧 Roadmap de Consolidación (en curso)
+
+A partir de una auditoría externa del repositorio (21 de septiembre de 2026), el proyecto entró en una etapa de **consolidación** antes de seguir sumando funciones nuevas: cerrar bugs conocidos del bucle de voz, medir y mejorar el rendimiento en CPU, blindar la memoria/RAG, hacer que cada herramienta y el panel SENTINEL digan la verdad sobre lo que hacen, y dejar pruebas + CI reales. 8 fases (0 a 7), documentadas y ejecutadas una a la vez:
+
+| Fase | Objetivo | Estado |
+|---|---|:-:|
+| 0 | Línea base: rama, tests, métricas, log a archivo | 🚧 |
+| 1 | Correcciones críticas del bucle de voz | ⏳ |
+| 2 | Rendimiento y latencia | ⏳ |
+| 3 | Memoria y RAG | ⏳ |
+| 4 | Herramientas confiables | ⏳ |
+| 5 | Seguridad, privacidad y documentación veraz | ⏳ |
+| 6 | Panel SENTINEL honesto y funcional | ⏳ |
+| 7 | Pruebas, CI y empaquetado (cierre) | ⏳ |
+
+*El Whisper Centinela (wake word) no se toca durante esta consolidación — ya funciona y se queda como está.*
 
 ---
 
