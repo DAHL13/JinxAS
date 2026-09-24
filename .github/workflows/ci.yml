@@ -26,5 +26,4 @@ jobs:
           pip install pytest
 
       - name: Ejecutar tests unitarios
-        run: |
-          pytest tests/ -v
+        run: python -m pytest tests/ -v
