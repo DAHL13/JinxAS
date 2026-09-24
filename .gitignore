@@ -25,6 +25,7 @@ Thumbs.db
 Boveda_Obsidian/
 
 # Logs y archivos temporales
+logs/
 *.log
 *.tmp
 

@@ -745,10 +745,16 @@
       }
     },
     setRespuesta: function(texto, latenciaMs) {
-      const txtEl = document.getElementById('respuestaTexto');
-      const latEl = document.getElementById('headerLatency');
-      if (txtEl) txtEl.textContent = texto;
-      if (latEl) latEl.textContent = `${latenciaMs} ms`;
+      const el = document.getElementById('respuestaTexto');
+      if (el) {
+        el.textContent = '';
+        const marca = document.createElement('span');
+        marca.className = 'text-primary font-bold';
+        marca.textContent = '» ';
+        el.append(marca, document.createTextNode(texto));
+      }
+      const lat = document.getElementById('headerLatency');
+      if (lat) lat.textContent = `${latenciaMs} ms`;
     },
     actualizarSatelite: function(hub, sat, titulo, desc) {
       const elTitulo = document.getElementById(`sat-${hub}-${sat}-titulo`);

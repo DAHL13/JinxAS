@@ -41,8 +41,7 @@ class ControladorPanel:
 
     def actualizar_respuesta(self, texto: str, latencia: int) -> None:
         """Actualiza el texto de la última respuesta y la latencia en ms."""
-        texto_seguro = json.dumps(texto)
-        self._eval(f"if (window.jinxUI) {{ window.jinxUI.setRespuesta({texto_seguro}, {latencia}); }}")
+        self._eval(f"window.jinxUI.setRespuesta({json.dumps(texto)}, {int(latencia)})")
 
     def actualizar_satelite(self, hub: int, sat: int, titulo: str = None, desc: str = None) -> None:
         """Actualiza dinámicamente el título y descripción de cualquier satélite en el panel."""

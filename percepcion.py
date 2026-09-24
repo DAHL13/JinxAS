@@ -13,19 +13,91 @@ from config import (
     PHRASE_TIME_LIMIT,
     PROMPT_INICIAL_WHISPER,
     TIEMPO_MAXIMO_ESCUCHA,
-    configurar_consola,
 )
 
-configurar_consola()
+
+class MicrofonoNoDisponible(RuntimeError):
+    """Se lanza cuando el hardware de micrófono no es accesible (OSError de PyAudio)."""
 
 _MODELO_CENTINELA = None
-_MODELO_COMANDO = None
 
+# ── Caché perezosa para STT de comandos (independiente del centinela) ──────────
+_RECONOCEDOR_COMANDOS = None
+_MODELO_WHISPER_COMANDOS = None
+
+# Reconocedor compartido del centinela (se mantiene para no romper la lógica interna)
 _RECOGNIZER = sr.Recognizer()
 _RECOGNIZER.energy_threshold = 300
 _RECOGNIZER.dynamic_energy_threshold = True
 _RECOGNIZER.dynamic_energy_adjustment_damping = 0.15
 _RECOGNIZER.pause_threshold = 0.8
+
+
+def _obtener_reconocedor_comandos() -> sr.Recognizer:
+    """Devuelve el reconocedor dedicado a comandos, creándolo la primera vez."""
+    global _RECONOCEDOR_COMANDOS
+    if _RECONOCEDOR_COMANDOS is None:
+        _RECONOCEDOR_COMANDOS = sr.Recognizer()
+        _RECONOCEDOR_COMANDOS.energy_threshold = 300
+        _RECONOCEDOR_COMANDOS.dynamic_energy_threshold = True
+        _RECONOCEDOR_COMANDOS.pause_threshold = 0.8
+    return _RECONOCEDOR_COMANDOS
+
+
+def _obtener_modelo_comandos():
+    """Carga el modelo Whisper principal para comandos, una sola vez."""
+    global _MODELO_WHISPER_COMANDOS
+    if _MODELO_WHISPER_COMANDOS is None:
+        logging.info("Cargando modelo Whisper principal (comandos)...")
+        _MODELO_WHISPER_COMANDOS = whisper.load_model(config.MODELO_WHISPER)
+    return _MODELO_WHISPER_COMANDOS
+
+
+# ── Filtro de alucinaciones ────────────────────────────────────────────────────
+ALUCINACIONES = ("amara.org", "subtitulos", "gracias por ver", "suscribete")
+
+
+def _normalizar_simple(texto: str) -> str:
+    """Versión mínima de normalizar() para evitar importación circular con comandos."""
+    import unicodedata
+    if not texto:
+        return ""
+    texto = texto.lower()
+    texto = "".join(
+        c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn"
+    )
+    texto = re.sub(r"[^\w\s]", "", texto)
+    return re.sub(r"\s+", " ", texto).strip()
+
+
+def filtrar_transcripcion(res: dict) -> str | None:
+    """
+    Descarta transcripciones vacías, alucinadas o con baja probabilidad de habla real.
+    Retorna el texto limpio o None si debe ignorarse.
+    """
+    texto = (res.get("text") or "").strip()
+    if len(texto) < 2:
+        return None
+
+    segs = res.get("segments") or []
+    if not segs:
+        return None
+
+    # Todos los segmentos sin habla detectada → descartar
+    if all(s.get("no_speech_prob", 0.0) > 0.6 for s in segs):
+        return None
+
+    # Logprob promedio muy bajo → transcripción de ruido
+    avg_logprob = sum(s.get("avg_logprob", 0.0) for s in segs) / len(segs)
+    if avg_logprob < -1.0:
+        return None
+
+    # Cadenas propias de subtítulos de YouTube u otros artefactos
+    texto_norm = _normalizar_simple(texto)
+    if any(a in texto_norm for a in ALUCINACIONES):
+        return None
+
+    return texto
 
 def coincide_wakeword(texto: str, variantes: list, umbral: int = 80) -> bool:
     # Compara cada palabra del texto transcrito contra las variantes aceptadas
@@ -129,8 +201,8 @@ def esperar_palabra_activacion(
         logging.info("Espera de palabra de activación interrumpida.")
         return False
     except OSError as e:
-        logging.error("Error de hardware o micrófono: %s", e)
-        return False
+        # Propagamos el error de hardware para que main.py aplique el backoff
+        raise MicrofonoNoDisponible(str(e)) from e
     except Exception as e:
         logging.error("Error inesperado en centinela de activación: %s", e)
         return False
@@ -155,81 +227,76 @@ def limpiar_texto_transcrito(texto: str) -> str:
     return texto.strip()
 
 def escuchar_y_transcribir(
-    modelo=MODELO_WHISPER,
-    tiempo_maximo=TIEMPO_MAXIMO_ESCUCHA,
-    phrase_time_limit=15,
-    initial_prompt=PROMPT_INICIAL_WHISPER,
+    modelo: str = MODELO_WHISPER,
+    tiempo_maximo: int = TIEMPO_MAXIMO_ESCUCHA,
+    phrase_time_limit: int = PHRASE_TIME_LIMIT,
+    initial_prompt: str = "",
     evento_apagar=None,
     panel=None,
-):
+) -> str | None:
     """
-    Inicializa el micrófono y escucha por un máximo de tiempo_maximo segundos.
-    Transcribe el audio usando el modelo Whisper en caché (fp16=False) sin recalibrar
-    el ruido ambiental (ya calibrado previamente por el centinela).
+    Captura un comando de voz y lo transcribe con Whisper.
+
+    - Usa el reconocedor y el modelo cacheados para comandos (independiente del centinela).
+    - NO llama a adjust_for_ambient_noise para no perder el primer segundo de audio.
+    - Propaga MicrofonoNoDisponible si el hardware falla.
+    - Aplica filtrar_transcripcion() para descartar alucinaciones.
     """
     if evento_apagar and evento_apagar.is_set():
         return None
 
-    recognizer = _RECOGNIZER
+    r = _obtener_reconocedor_comandos()
+    modelo_whisper = _obtener_modelo_comandos()
 
-    logging.info("Módulo de percepción - asistente de voz local")
-
+    # ── Captura de audio ──────────────────────────────────────────────────────
     try:
-        with sr.Microphone() as source:
-            logging.info("Escuchando... (habla ahora, máximo %s segundos)", phrase_time_limit)
+        with sr.Microphone() as fuente:
+            logging.info("Escuchando comando... (máximo %s s)", phrase_time_limit)
             if panel:
                 panel.actualizar_satelite(2, 1, "Micrófono", f"Escuchando ({phrase_time_limit}s)...")
-                panel.actualizar_satelite(2, 2, "Modelo Whisper", "small (en caché)")
+                panel.actualizar_satelite(2, 2, "Modelo Whisper", f"{config.MODELO_WHISPER} (en caché)")
             try:
-                # Escuchar con límite de tiempo y tiempo máximo de frase
-                audio = recognizer.listen(
-                    source,
-                    timeout=tiempo_maximo,
-                    phrase_time_limit=15,
+                audio = r.listen(
+                    fuente,
+                    timeout=config.TIEMPO_MAXIMO_ESCUCHA,
+                    phrase_time_limit=config.PHRASE_TIME_LIMIT,
                 )
-                logging.info("Audio capturado exitosamente. Procesando con Whisper...")
-
+                logging.info("Audio capturado. Transcribiendo...")
             except sr.WaitTimeoutError:
-                logging.info("Tiempo de espera agotado: no se detectó voz dentro del tiempo límite.")
+                logging.info("Tiempo de espera agotado: no se detectó voz.")
                 return None
-
     except OSError as e:
-        logging.error("Error de PyAudio / Micrófono: %s", e)
-        logging.error("Verifica que tu micrófono esté conectado y que Windows tenga activados los permisos de micrófono.")
-        return None
-    except Exception as e:
-        logging.error("Error al inicializar el micrófono: %s", e)
-        return None
+        raise MicrofonoNoDisponible(str(e)) from e
 
     if evento_apagar and evento_apagar.is_set():
         return None
 
-    # Transcripción directa con el modelo Whisper en caché (ultra-rápida, fp16=False)
+    # ── Transcripción numpy directa ───────────────────────────────────────────
     try:
-        nombre_modelo = modelo if isinstance(modelo, str) else "small"
-        modelo_whisper = _obtener_modelo_comando(nombre_modelo)
+        crudo = audio.get_raw_data(convert_rate=16000, convert_width=2)
+        audio_np = np.frombuffer(crudo, dtype=np.int16).astype(np.float32) / 32768.0
 
-        raw_data = audio.get_raw_data(convert_rate=16000, convert_width=2)
-        audio_np = np.frombuffer(raw_data, dtype=np.int16).flatten().astype(np.float32) / 32768.0
-
-        logging.info("Transcribiendo audio directamente con Whisper (fp16=False)...")
         if panel:
-            panel.actualizar_satelite(2, 1, "Whisper Small", "Transcribiendo...")
-            panel.actualizar_satelite(2, 2, "Modelo Whisper", "small (en caché)")
-        resultado = modelo_whisper.transcribe(
+            panel.actualizar_satelite(2, 1, "Whisper", "Transcribiendo...")
+
+        res = modelo_whisper.transcribe(
             audio_np,
-            language="es",
+            language=config.IDIOMA_WHISPER,
             fp16=False,
             initial_prompt=initial_prompt,
+            condition_on_previous_text=False,
         )
 
-        texto_transcrito = resultado.get("text", "")
-        texto_limpio = limpiar_texto_transcrito(texto_transcrito)
-        logging.info('Texto reconocido: "%s"', texto_limpio)
-        return texto_limpio if texto_limpio else None
+        texto = filtrar_transcripcion(res)
+        if texto:
+            texto = limpiar_texto_transcrito(texto)
+            logging.info('Texto reconocido: "%s"', texto)
+        else:
+            logging.info("Transcripción descartada por filtro de alucinaciones.")
+        return texto or None
 
     except Exception as e:
-        logging.error("Error inesperado durante la transcripción: %s", e)
+        logging.error("Error durante la transcripción: %s", e)
         return None
 
 if __name__ == "__main__":

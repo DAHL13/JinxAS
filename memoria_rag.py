@@ -28,12 +28,20 @@ def _obtener_modelo() -> SentenceTransformer:
         logging.info("[RAG] Modelo de embeddings listo.")
     return _modelo_embedding
 
+
 # ---------------------------------------------------------------------------
 # Estado global del índice (se construye una sola vez al inicio de Jinx)
 # ---------------------------------------------------------------------------
 _indice = None
 _fragmentos: list = []    # Lista de {"archivo": str, "texto": str} por chunk
 _origenes: list = []      # Nombre del archivo .md de cada chunk
+
+
+def _asegurar_indice() -> None:
+    global _indice
+    if _indice is None:
+        dim = _obtener_modelo().get_sentence_embedding_dimension()
+        _indice = faiss.IndexFlatL2(dim)
 
 # ---------------------------------------------------------------------------
 # Parámetros de chunking
@@ -65,8 +73,9 @@ def agregar_nota_al_indice(ruta_archivo: str = None, contenido: str = None) -> N
     """
     Sincroniza en tiempo real el índice vectorial en memoria cuando se crea
     o actualiza una nota en la bóveda durante la sesión.
-    Reconstruye el índice completo para evitar fragmentos obsoletos y duplicados.
+    Garantiza que el índice exista antes de reindexar.
     """
+    _asegurar_indice()
     logging.info("[RAG] Reindexando bóveda tras actualización de nota...")
     construir_indice()
 

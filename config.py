@@ -1,11 +1,13 @@
 import os
 import sys
 
-def configurar_consola():
-    if sys.platform == "win32":
-        for flujo in (sys.stdout, sys.stderr):
-            if flujo is not None and hasattr(flujo, "reconfigure"):
-                flujo.reconfigure(encoding="utf-8")
+def configurar_utf8() -> None:
+    for flujo in (sys.stdout, sys.stderr):
+        if flujo is not None and hasattr(flujo, "reconfigure"):
+            flujo.reconfigure(encoding="utf-8")
+
+
+configurar_consola = configurar_utf8
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -41,7 +43,7 @@ LLM_OPCIONES = {"temperature": 0.3, "num_ctx": 4096}
 LLM_KEEP_ALIVE = "30m"
 
 PROMPT_INICIAL_WHISPER = (
-    "Asistente de voz llamado Jinx. Comandos de código, programación, Python, apagar, salir, consultas técnicas."
+    "Asistente de voz llamado Jinx. Comandos de código, programación, Python, consultas técnicas."
 )
 
 SYSTEM_PROMPT = """Eres Jinx, un asistente de voz local genial, directo, brillante y astuto.

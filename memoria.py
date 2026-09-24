@@ -3,10 +3,8 @@ import os
 import re
 import sys
 from datetime import datetime
-from config import RUTA_VAULT, TITULO_NOTA_MAX, configurar_consola
+from config import RUTA_VAULT, TITULO_NOTA_MAX
 from memoria_rag import agregar_nota_al_indice
-
-configurar_consola()
 
 def _normalizar_nombre_archivo(titulo: str) -> str:
     """

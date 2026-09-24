@@ -2,10 +2,8 @@ import logging
 import sys
 import ollama
 import config
-from config import MODELO_LLM, SYSTEM_PROMPT, configurar_consola
+from config import MODELO_LLM, SYSTEM_PROMPT
 from herramientas import MAPA_APLICACIONES
-
-configurar_consola()
 
 ESQUEMAS_HERRAMIENTAS = [
     {
@@ -155,8 +153,12 @@ def procesar_pensamiento(mensajes: list, modelo: str = MODELO_LLM, usar_tools: b
         logging.info(f"Ollama TPS: {tps:.2f} | Contexto usado: {response.get('prompt_eval_count', 0)} tokens")
         return _mensaje_a_dict(response["message"])
     except Exception as e:
-        logging.error("Error al comunicarse con Ollama: %s", e)
-        raise ErrorLLM(str(e)) from e
+        logging.error("Ollama fall\u00f3: %s", e)
+        return {
+            "role": "assistant",
+            "_error": True,
+            "content": "No pude pensar eso ahora. Revisa que Ollama est\u00e9 corriendo.",
+        }
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")

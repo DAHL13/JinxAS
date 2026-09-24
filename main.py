@@ -1,14 +1,16 @@
 import json
 import logging
+import os
 import re
 import sys
 import threading
 import time
 import unicodedata
+from logging.handlers import RotatingFileHandler
 import webview
 import config
-from percepcion import escuchar_y_transcribir, esperar_palabra_activacion
-from cerebro import procesar_pensamiento, ErrorLLM
+from percepcion import escuchar_y_transcribir, esperar_palabra_activacion, MicrofonoNoDisponible
+from cerebro import procesar_pensamiento
 from voz import reproducir_voz
 from herramientas import (
     obtener_estado_sistema,
@@ -20,26 +22,34 @@ from herramientas import (
 from memoria import guardar_nota, buscar_nota
 from memoria_rag import construir_indice, obtener_cantidad_fragmentos
 from interfaz import ControladorPanel, InterfazAPI, WebViewLogHandler
+from metricas import medir
+from comandos import es_comando, COMANDOS_SALIDA, COMANDOS_REINICIO
 from config import (
     MODELO_WHISPER,
     PALABRA_ACTIVACION,
     PHRASE_TIME_LIMIT,
     SYSTEM_PROMPT,
     TIEMPO_MAXIMO_ESCUCHA,
-    COMANDOS_SALIDA,
-    FRASES_REINICIO,
     MAX_RONDAS_TOOLS,
-    configurar_consola,
+    configurar_utf8,
 )
 
-configurar_consola()
+configurar_utf8()
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
+os.makedirs("logs", exist_ok=True)
+_fmt = logging.Formatter("%(asctime)s %(levelname)s - %(message)s")
+_handler_consola = logging.StreamHandler()
+_handler_consola.setFormatter(_fmt)
+_handler_archivo = RotatingFileHandler(
+    "logs/jinx.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8"
+)
+_handler_archivo.setFormatter(_fmt)
+logging.basicConfig(level=logging.INFO, handlers=[_handler_consola, _handler_archivo])
 
 # Instancia global del controlador de UI.
 # panel.ventana se asigna desde __main__ después de create_window().
 panel = ControladorPanel()
-evento_apagar = threading.Event()
+detener = threading.Event()
 
 FUNCIONES_DISPONIBLES = {
     "obtener_estado_sistema": obtener_estado_sistema,
@@ -83,57 +93,52 @@ def _extraer_llamada(tool_call) -> tuple:
         argumentos = {}
     return nombre, argumentos
 
-def _ejecutar_herramienta(nombre_fn: str, argumentos: dict) -> str:
-    logging.info("Herramienta solicitada: %s %s", nombre_fn, argumentos)
-    if panel:
-        panel.actualizar_satelite(3, 2, "Ejecutando Tool", nombre_fn)
-    funcion = FUNCIONES_DISPONIBLES.get(nombre_fn)
+def ejecutar_herramienta(nombre: str, argumentos: dict) -> str:
+    funcion = FUNCIONES_DISPONIBLES.get(nombre)
+    if funcion is None:
+        return f"Herramienta no permitida: {nombre}"
     try:
-        if funcion is None:
-            resultado = f"Herramienta no permitida: {nombre_fn}"
-        else:
-            resultado = str(funcion(**argumentos))
-    except Exception as e:
-        logging.error("Error al ejecutar %s: %s", nombre_fn, e)
-        resultado = f"Error al ejecutar {nombre_fn}: {e}"
-    logging.info("Resultado: %s", resultado)
-    return resultado
+        return str(funcion(**argumentos))
+    except TypeError as e:
+        return f"Argumentos inválidos para {nombre}: {e}"
+    except Exception:
+        import logging
+        logging.exception("Fallo en %s", nombre)
+        return f"Error al ejecutar {nombre}."
+
+
+_ejecutar_herramienta = ejecutar_herramienta
+
 
 def ejecutar_turno(contexto: list) -> str:
-    respuesta = {}
-    for ronda in range(config.MAX_RONDAS_TOOLS):
-        ultima = (ronda == config.MAX_RONDAS_TOOLS - 1)
-        respuesta = procesar_pensamiento(contexto, usar_tools=not ultima)
+    respuesta = procesar_pensamiento(contexto)
+    if not respuesta.get("_error"):
         contexto.append(respuesta)
-        tool_calls = respuesta.get("tool_calls")
-        if tool_calls:
-            for tool_call in tool_calls:
-                nombre_fn, argumentos = _extraer_llamada(tool_call)
-                resultado = _ejecutar_herramienta(nombre_fn, argumentos)
-                resultado_seguro = f"<datos_herramienta nombre='{nombre_fn}'>\n{str(resultado)[:1500]}\n</datos_herramienta>"
-                contexto.append({"role": "tool", "content": resultado_seguro})
-            if panel:
-                panel.actualizar_satelite(3, 1, "Inferencia", "Sintetizando razonamiento...")
-                panel.actualizar_satelite(3, 2, "qwen2.5:3b", "Tool completada")
-        else:
-            break
 
-    texto_final = (respuesta.get("content") or "").strip()
-    if not texto_final:
-        texto_final = "No pude completar eso."
-        if respuesta.get("role") == "assistant" and not respuesta.get("content"):
-            respuesta["content"] = texto_final
+    rondas = 0
+    while respuesta.get("tool_calls") and rondas < config.MAX_RONDAS_TOOLS:
+        for tc in respuesta["tool_calls"]:
+            nombre, args = _extraer_llamada(tc)
+            resultado = ejecutar_herramienta(nombre, args)
+            # F1-11: Asegurar que se envía tool_name
+            contexto.append({"role": "tool", "tool_name": nombre, "content": resultado})
+
+        respuesta = procesar_pensamiento(contexto)
+        if not respuesta.get("_error"):
+            contexto.append(respuesta)
+        rondas += 1
+
+    texto_final = (respuesta.get("content") or "").strip() or "Listo."
     return texto_final
 
-def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None, api_js=None):
-    if evento_apagar is None:
-        evento_apagar = threading.Event()
+def bucle_voz_secundario(detener: threading.Event = None, panel=None, api_js=None):
+    if detener is None:
+        detener = threading.Event()
     if panel is None:
         from interfaz import panel as panel_instancia
         panel = panel_instancia
 
-    logging.info("Jinx Asistente - asistente de voz local")
-    logging.info("Di 'salir', 'cancelar', 'apagar', 'detener' o presiona Ctrl+C para salir.")
+    logging.info("Jinx Asistente arrancado. Di 'salir', 'apagar' o 'detener' para cerrar.")
 
     # ── Fase 4: construir el índice RAG una sola vez al arrancar ──
     logging.info("[RAG] Cargando bóveda de Obsidian en memoria...")
@@ -148,7 +153,8 @@ def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None, api_
     if api_js is not None:
         api_js.contexto = contexto
 
-    while not evento_apagar.is_set():
+    fallos_micro = 0
+    while not detener.is_set():
         try:
             # ── Estado 1: Centinela — esperando wake word ──
             panel.actualizar_estado(1)
@@ -157,14 +163,26 @@ def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None, api_
                 panel.actualizar_satelite(2, 2, "Buffer Audio", "Vacío")
                 panel.actualizar_satelite(3, 2, "Herramientas", "Ninguna activa")
             logging.info("Esperando palabra de activación 'Jinx'...")
-            activado = esperar_palabra_activacion(PALABRA_ACTIVACION, evento_apagar=evento_apagar, panel=panel)
+            try:
+                activado = esperar_palabra_activacion(PALABRA_ACTIVACION, evento_apagar=detener, panel=panel)
+            except MicrofonoNoDisponible as e:
+                fallos_micro += 1
+                logging.error("[MICRO] Fallo de micrófono (#%d): %s", fallos_micro, e)
+                if fallos_micro >= 5:
+                    reproducir_voz("Fallo de micrófono. Me apago.")
+                    detener.set()
+                    break
+                time.sleep(min(2 ** fallos_micro, 30))
+                continue
+            fallos_micro = 0  # éxito → reiniciar contador
             if not activado:
-                if evento_apagar.is_set():
+                if detener.is_set():
                     break
                 continue
 
             # Capturamos el tiempo de inicio del turno completo
             inicio_turno = time.time()
+            tiempos: dict = {}
 
             logging.info("¡Despierta!")
             reproducir_voz("Dime")
@@ -173,28 +191,24 @@ def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None, api_
             # ── Estado 2: Transcripción — Whisper procesando audio ──
             panel.actualizar_estado(2)
             logging.info("Escuchando tu comando...")
-            texto_usuario = escuchar_y_transcribir(
-                modelo=MODELO_WHISPER,
-                tiempo_maximo=TIEMPO_MAXIMO_ESCUCHA,
-                phrase_time_limit=PHRASE_TIME_LIMIT,
-                panel=panel,
-            )
+            with medir("stt", tiempos):
+                texto_usuario = escuchar_y_transcribir(
+                    modelo=MODELO_WHISPER,
+                    tiempo_maximo=TIEMPO_MAXIMO_ESCUCHA,
+                    phrase_time_limit=PHRASE_TIME_LIMIT,
+                    panel=panel,
+                )
 
             if texto_usuario and texto_usuario.strip():
                 texto_reconocido = texto_usuario.strip()
 
-                if normalizar(texto_reconocido) in config.COMANDOS_SALIDA:
+                if es_comando(texto_reconocido, COMANDOS_SALIDA):
                     logging.info("Cerrando asistente Jinx...")
-                    reproducir_voz("Hasta luego, apagando sistema.")
-                    evento_apagar.set()
-                    try:
-                        if panel and getattr(panel, "ventana", None):
-                            panel.ventana.destroy()
-                    except Exception:
-                        pass
+                    reproducir_voz("Hasta luego.")
+                    detener.set()
                     break
 
-                if normalizar(texto_reconocido) in config.FRASES_REINICIO:
+                if es_comando(texto_reconocido, COMANDOS_REINICIO):
                     logging.info("Reiniciando memoria de conversación...")
                     contexto = [{"role": "system", "content": SYSTEM_PROMPT}]
                     # Reasignar la nueva lista al api_js para que Emergency Flush siga operativo
@@ -224,11 +238,31 @@ def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None, api_
                     api_js.contexto = contexto
 
                 n_previo = len(contexto)
-                try:
-                    texto_final = ejecutar_turno(contexto)
-                except ErrorLLM:
-                    del contexto[n_previo:]
-                    texto_final = "No puedo pensar ahora mismo, revisa que Ollama esté corriendo."
+                with medir("llm_turno", tiempos):
+                    respuesta = procesar_pensamiento(contexto)
+                    if not respuesta.get("_error"):
+                        contexto.append(respuesta)
+
+                    rondas = 0
+                    while respuesta.get("tool_calls") and rondas < config.MAX_RONDAS_TOOLS:
+                        for tc in respuesta["tool_calls"]:
+                            nombre, args = _extraer_llamada(tc)
+                            if panel:
+                                panel.actualizar_satelite(3, 2, "Ejecutando Tool", nombre)
+                            resultado = ejecutar_herramienta(nombre, args)
+                            # F1-11: Asegurar que se envía tool_name
+                            contexto.append({"role": "tool", "tool_name": nombre, "content": resultado})
+
+                        respuesta = procesar_pensamiento(contexto)
+                        if not respuesta.get("_error"):
+                            contexto.append(respuesta)
+                        rondas += 1
+
+                    texto_final = (respuesta.get("content") or "").strip() or "Listo."
+
+                # F1-13: Mostrar texto en el panel UI antes de reproducir TTS
+                latencia_ms = int((time.time() - inicio_turno) * 1000)
+                panel.actualizar_respuesta(texto_final, latencia_ms)
 
                 logging.info("Respuesta Jinx: %s", texto_final)
 
@@ -238,7 +272,8 @@ def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None, api_
                 if panel:
                     panel.actualizar_satelite(4, 2, "Pygame Mixer", "Reproduciendo audio...")
                 logging.info("Jinx respondiendo con voz...")
-                reproducir_voz(texto_final)
+                with medir("tts", tiempos):
+                    reproducir_voz(texto_final)
                 if panel:
                     panel.actualizar_satelite(4, 2, "Pygame Mixer", "En espera")
                 time.sleep(0.8)  # Purga el buffer del micrófono y evita captura de eco
@@ -247,6 +282,7 @@ def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None, api_
                 latencia_ms = int((time.time() - inicio_turno) * 1000)
                 panel.actualizar_estado(5)
                 panel.actualizar_respuesta(texto_final, latencia_ms)
+                logging.info("[TURNO] %s", {k: round(v) for k, v in tiempos.items()})
 
                 # Latido del pipeline - Reset visual
                 if panel:
@@ -263,16 +299,18 @@ def bucle_voz_secundario(evento_apagar: threading.Event = None, panel=None, api_
 
         except KeyboardInterrupt:
             logging.info("Cerrando asistente Jinx...")
-            evento_apagar.set()
-            try:
-                if panel and getattr(panel, "ventana", None):
-                    panel.ventana.destroy()
-            except Exception:
-                pass
+            detener.set()
             break
         except Exception as e:
             logging.error("Ocurrió un error en el ciclo principal: %s", e)
             time.sleep(2)
+
+    # Apagado limpio: destruir la ventana si todavía existe
+    try:
+        if panel and getattr(panel, "ventana", None):
+            panel.ventana.destroy()
+    except Exception:
+        pass
 
 if __name__ == "__main__":
     # Holder mutable compartido entre el hilo de voz y la API inversa.
@@ -280,7 +318,7 @@ if __name__ == "__main__":
     # InterfazAPI.limpiar_memoria_ui() lo limpia vía api_js.contexto.
     api_js = InterfazAPI()
 
-    hilo_voz = threading.Thread(target=bucle_voz_secundario, args=(evento_apagar, panel, api_js), daemon=True)
+    hilo_voz = threading.Thread(target=bucle_voz_secundario, args=(detener, panel, api_js), daemon=True)
     hilo_voz.start()
 
     ventana = webview.create_window(
@@ -295,7 +333,8 @@ if __name__ == "__main__":
     handler_ui.setLevel(logging.INFO)
     logging.getLogger().addHandler(handler_ui)
 
-    ventana.events.closed += lambda: evento_apagar.set()
+    # Al cerrar la ventana con la 'X', el hilo de voz también para
+    ventana.events.closed += detener.set
     # Conecta el controlador de UI con la ventana nativa
     panel.ventana = ventana
     webview.start()

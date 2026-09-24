@@ -7,10 +7,8 @@ from urllib.parse import quote
 import psutil
 import requests
 import config
-from config import MAPA_APLICACIONES, configurar_consola
+from config import MAPA_APLICACIONES
 from memoria_rag import buscar_en_notas
-
-configurar_consola()
 
 def obtener_estado_sistema() -> str:
     """

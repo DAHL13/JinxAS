@@ -1,13 +1,27 @@
 import logging
 import os
+import re
 import sys
 import tempfile
 import time
 import asyncio
 import edge_tts
-from config import VOZ_TTS, configurar_consola
+from config import VOZ_TTS
 
-configurar_consola()
+_URL = re.compile(r"https?://\S+")
+_EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF]")
+_MD = re.compile(r"[*_`#>]+")
+
+
+def limpiar_para_tts(texto: str) -> str:
+    """Elimina URLs, emojis y markdown para asegurar una pronunciación limpia en TTS."""
+    if not texto:
+        return ""
+    texto = _URL.sub("", texto)
+    texto = _EMOJI.sub("", texto)
+    texto = _MD.sub("", texto)
+    return re.sub(r"\s+", " ", texto).strip()
+
 
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 import pygame
@@ -21,7 +35,8 @@ def reproducir_voz(texto: str, voz: str = VOZ_TTS):
     Genera audio a partir de texto usando edge-tts y lo reproduce con pygame.mixer de forma bloqueante.
     Usa un archivo temporal dinámico por invocación para evitar colisiones y limpiar el sistema correctamente.
     """
-    if not texto or not texto.strip():
+    texto = limpiar_para_tts(texto)
+    if not texto:
         return
 
     # Crear un archivo temporal único para esta reproducción
@@ -30,8 +45,18 @@ def reproducir_voz(texto: str, voz: str = VOZ_TTS):
     tmp.close()  # Cerrar antes de que edge-tts escriba en él
 
     try:
-        # Generar archivo de audio con edge-tts
-        asyncio.run(_generar_audio_edge(texto, voz, archivo_temporal))
+        # Generar archivo de audio con edge-tts con reintentos y timeout de red
+        for intento in range(2):
+            try:
+                asyncio.run(asyncio.wait_for(_generar_audio_edge(texto, voz, archivo_temporal), timeout=8))
+                break
+            except Exception as e:
+                logging.warning("TTS intento %d falló: %s", intento + 1, e)
+        else:
+            if sys.platform == "win32":
+                import winsound
+                winsound.MessageBeep()
+            return
 
         # Inicializar mixer si no está activo
         if not pygame.mixer.get_init():
@@ -51,6 +76,10 @@ def reproducir_voz(texto: str, voz: str = VOZ_TTS):
     except Exception as e:
         logging.error("Error en módulo de voz TTS: %s", e)
     finally:
+        try:
+            pygame.mixer.music.unload()
+        except Exception:
+            pass
         # Eliminar archivo temporal dinámico del sistema
         if os.path.exists(archivo_temporal):
             try:
