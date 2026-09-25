@@ -3,12 +3,15 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from urllib.parse import quote
 import psutil
 import requests
 import config
 from config import MAPA_APLICACIONES
 from memoria_rag import buscar_en_notas
+
+_cache_clima: tuple[float, str] = (0.0, "")
 
 def obtener_estado_sistema() -> str:
     """
@@ -136,15 +139,20 @@ def obtener_clima() -> str:
     Obtiene el clima actual y la temperatura consultando la API de wttr.in
     utilizando la ciudad por defecto configurada en config.py.
     """
+    global _cache_clima
+    ts, texto = _cache_clima
+    if texto and time.time() - ts < 600:
+        return texto
     try:
         url = f"https://wttr.in/{quote(config.CIUDAD_POR_DEFECTO)}?format=%C+%t"
         respuesta = requests.get(url, timeout=5)
         if respuesta.status_code == 200:
-            texto = respuesta.text.strip()
-            texto_lower = texto.lower()
-            if not texto or "unknown location" in texto_lower or "404" in texto:
+            resultado = respuesta.text.strip()
+            texto_lower = resultado.lower()
+            if not resultado or "unknown location" in texto_lower or "404" in resultado:
                 return "Error: No se pudo obtener el clima en este momento."
-            return texto
+            _cache_clima = (time.time(), resultado)
+            return resultado
         return "Error: No se pudo obtener el clima en este momento."
     except requests.RequestException as e:
         logging.error("Error de red al consultar el clima: %s", e)

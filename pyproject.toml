@@ -8,3 +8,7 @@ select = ["E", "F", "I", "B", "UP"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+filterwarnings = [
+    # edge_tts es un MagicMock/AsyncMock global; ignorar su corrutina sin await
+    "ignore::RuntimeWarning:unittest.mock",
+]

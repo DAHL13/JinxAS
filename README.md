@@ -46,6 +46,7 @@ El proyecto está diseñado con separación de responsabilidades y modularidad l
 - Define `MAPA_APLICACIONES`: el *allowlist* de aplicaciones que Jinx tiene permitido abrir.
 - Configura ubicación por defecto (`CIUDAD_POR_DEFECTO`), permitiendo sobrescritura por variable de entorno `JINX_CIUDAD` o archivo `config_local.py`.
 - Expone `configurar_consola()` para garantizar encoding UTF-8 en streams de entrada/salida bajo Windows.
+- `STREAMING = False` — bandera para activar el pipeline TTS por frases con TTFA reducido (F2-02). En `True`, el LLM y el TTS trabajan en paralelo frase a frase.
 
 ### 👂 Módulo 1 — Percepción · `percepcion.py`
 **Wake Word ultraligero + Speech-to-Text (STT) con Whisper local**
@@ -61,7 +62,8 @@ El proyecto está diseñado con separación de responsabilidades y modularidad l
 **LLM local con Ollama / Qwen 2.5 3B — Tool Calling nativo**
 
 - Define `ESQUEMAS_HERRAMIENTAS`: las **7 herramientas disponibles** para el modelo, declaradas con JSON Schema estructurado.
-- `procesar_pensamiento(mensajes)` envía el historial de conversación completo a Ollama con `tools=ESQUEMAS_HERRAMIENTAS`, opciones de inferencia optimizadas (`temperature=0.3`, `num_ctx=4096`) y devuelve la respuesta del modelo.
+- `procesar_pensamiento(mensajes)` — modo clásico: envía el historial completo a Ollama con `tools=ESQUEMAS_HERRAMIENTAS` y devuelve la respuesta consolidada del modelo.
+- `procesar_pensamiento_stream(mensajes)` — modo streaming (F2-02): invoca `ollama.chat` con `stream=True` y emite los chunks en tiempo real. En excepción emite un chunk con `_error=True` sin colapsar el hilo de voz.
 - El modelo decide de forma estructurada cuándo y con qué argumentos llamar a cada herramienta.
 
 **Herramientas activas disponibles para el modelo:**
@@ -76,11 +78,15 @@ El proyecto está diseñado con separación de responsabilidades y modularidad l
 | `consultar_boveda(consulta)` | Busca información semántica en la bóveda usando el índice RAG (FAISS) |
 
 ### 🔊 Módulo 3 — Voz · `voz.py`
-**Text-to-Speech (TTS) con Edge-TTS**
+**Text-to-Speech (TTS) con Edge-TTS — modo clásico y streaming**
 
 - Usa **Edge-TTS** (voz configurable en `config.py`, por defecto `es-MX-DaliaNeural`) para sintetizar audio neural conectándose al servicio de Microsoft.
 - Genera un archivo temporal dinámico por invocación (`tempfile`), evitando colisiones de concurrencia.
 - Reproduce el audio con `pygame.mixer` de forma bloqueante y elimina el archivo temporal de forma garantizada.
+- `on_start: callable` — callback opcional invocado justo antes de `pygame.play()` para registrar el TTFA con precisión de milisegundos (F2-06).
+- `FIN_DE_FRASE` — expresión regular que detecta `.`, `!`, `?`, `…` seguidos de espacio para segmentar texto en frases (F2-02).
+- `extraer_frases(flujo_texto)` — generador que consume chunks del LLM y emite frases completas una a una (F2-02).
+- `reproducir_frases_streaming(frases_iter, on_start)` — pipeline streaming con hilo productor de síntesis y consumidor de reproducción comunicados por `queue.Queue(maxsize=4)`. Cada `.mp3` se elimina inmediatamente tras reproducirlo (F2-02).
 
 ### 🧰 Módulo 4 — Herramientas · `herramientas.py`
 **Acceso al sistema operativo con seguridad reforzada**
@@ -113,6 +119,9 @@ El proyecto está diseñado con separación de responsabilidades y modularidad l
 3. Despacha turnos a `cerebro.py`, resolviendo llamadas recursivas de herramientas hasta un límite seguro (`MAX_RONDAS_TOOLS`).
 4. Protege el LLM contra inyecciones de prompt indirectas mediante etiquetas estructuradas `<datos_herramienta>`.
 5. Corre el bucle de audio en un hilo secundario (`threading`), manteniendo la ventana gráfica fluida en el hilo principal.
+6. **Modo streaming** (`config.STREAMING = True`, F2-02): `ejecutar_turno_streaming()` consume el stream de Ollama en tiempo real con un generador en vivo; el primer fragmento de texto se sintetiza y reproduce mientras el LLM sigue generando el resto, reduciendo el TTFA de forma medible.
+7. **Métricas honestas** (F2-06): `CronometroTurno` mide con `time.perf_counter()` los hitos de cada turno (inicio, fin STT, primer audio, fin TTS). El panel SENTINEL muestra `TTFA` en lugar de la latencia E2E inflada.
+8. **Índice RAG no bloqueante** (F2-07): `construir_indice()` se lanza en un hilo daemon al arrancar, de forma que el micrófono queda disponible de inmediato.
 
 ### 🖥️ Interfaz Visual — `interfaz.py` + `panel_sentinel.html`
 **Panel "SENTINEL // PIPELINE GRAPH"**
@@ -249,9 +258,9 @@ A partir de una auditoría externa del repositorio (21 de septiembre de 2026), e
 
 | Fase | Objetivo | Estado |
 |---|---|:-:|
-| 0 | Línea base: rama, tests, métricas, log a archivo | 🚧 |
-| 1 | Correcciones críticas del bucle de voz | ⏳ |
-| 2 | Rendimiento y latencia | ⏳ |
+| 0 | Línea base: rama, tests, métricas, log a archivo | ✅ |
+| 1 | Correcciones críticas del bucle de voz | ✅ |
+| 2 | Rendimiento y latencia | 🚧 |
 | 3 | Memoria y RAG | ⏳ |
 | 4 | Herramientas confiables | ⏳ |
 | 5 | Seguridad, privacidad y documentación veraz | ⏳ |
@@ -259,6 +268,27 @@ A partir de una auditoría externa del repositorio (21 de septiembre de 2026), e
 | 7 | Pruebas, CI y empaquetado (cierre) | ⏳ |
 
 *El Whisper Centinela (wake word) no se toca durante esta consolidación — ya funciona y se queda como está.*
+
+#### Detalle de tareas completadas
+
+**Fase 0 — Línea base**
+- ✅ Rama de consolidación creada, suite de `pytest` funcional, log rotativo a archivo (`logs/jinx.log`).
+- ✅ Mock de `thefuzz` en `conftest.py` para entornos sin la dependencia instalada.
+
+**Fase 1 — Correcciones críticas del bucle de voz**
+- ✅ **F1-11** Corrección del formato `tool_name` en mensajes de herramienta para Ollama.
+- ✅ **F1-13** Texto de respuesta visible en el panel antes de que arranque el TTS.
+- *(Resto de F1 pendiente de revisión)*
+
+**Fase 2 — Rendimiento y latencia** *(en curso)*
+- ✅ **F2-07 — Arranque no bloqueante de RAG:** `construir_indice()` se lanza en hilo daemon al iniciar. `buscar_semantica()` devuelve un mensaje amigable si el índice aún no está listo. Lock de hilo en `memoria_rag.py` para proteger el estado compartido (`_indice`, `_fragmentos`).
+- ✅ **F2-06 — Métricas honestas y TTFA:** Clase `CronometroTurno` en `metricas.py` con `time.perf_counter()`. Callback `on_start` en `reproducir_voz()` disparado justo antes de `pygame.play()`. El panel SENTINEL muestra `TTFA` (tiempo entre fin de STT y primer sample de audio) en lugar de la latencia E2E inflada por el TTS completo. Log estructurado `[METRICA_HONESTA]`.
+- ✅ **F2-02 — Streaming LLM + TTS por frases (primera y segunda mitad):**
+  - `procesar_pensamiento_stream()` en `cerebro.py` con `stream=True`.
+  - `extraer_frases()` y `reproducir_frases_streaming()` en `voz.py`: pipeline productor/consumidor con `queue.Queue(maxsize=4)`, limpieza garantizada de `.mp3` temporales.
+  - `ejecutar_turno_streaming()` en `main.py`: generador en vivo que emite chunks al TTS en tiempo real sin esperar el fin de la respuesta del LLM. Manejo correcto de `tool_calls` intermedios.
+  - Activable con `config.STREAMING = True`; en `False` el flujo clásico es 100% intacto.
+  - 75 tests unitarios pasando en verde, sin dependencias de red ni audio real.
 
 ---
 

@@ -103,17 +103,6 @@ def coincide_wakeword(texto: str, variantes: list, umbral: int = 80) -> bool:
     # Compara cada palabra del texto transcrito contra las variantes aceptadas
     return any(fuzz.ratio(p.lower(), v.lower()) >= umbral for p in texto.split() for v in variantes)
 
-def _obtener_modelo_comando(nombre_modelo: str = "small"):
-    """
-    Obtiene el modelo Whisper principal para comandos de voz desde la caché en memoria.
-    Se inicializa de forma perezosa una sola vez si aún no ha sido cargado.
-    """
-    global _MODELO_COMANDO
-    if _MODELO_COMANDO is None:
-        logging.info("Cargando modelo principal de Whisper (%s)...", nombre_modelo)
-        _MODELO_COMANDO = whisper.load_model(nombre_modelo)
-    return _MODELO_COMANDO
-
 def esperar_palabra_activacion(
     palabra_clave: str = PALABRA_ACTIVACION,
     variaciones: list = None,

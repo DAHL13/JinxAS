@@ -8,10 +8,11 @@ import time
 import unicodedata
 from logging.handlers import RotatingFileHandler
 import webview
+import ollama
 import config
 from percepcion import escuchar_y_transcribir, esperar_palabra_activacion, MicrofonoNoDisponible
-from cerebro import procesar_pensamiento
-from voz import reproducir_voz
+from cerebro import procesar_pensamiento, procesar_pensamiento_stream
+from voz import reproducir_voz, extraer_frases, reproducir_frases_streaming
 from herramientas import (
     obtener_estado_sistema,
     obtener_temperatura,
@@ -22,8 +23,9 @@ from herramientas import (
 from memoria import guardar_nota, buscar_nota
 from memoria_rag import construir_indice, obtener_cantidad_fragmentos
 from interfaz import ControladorPanel, InterfazAPI, WebViewLogHandler
-from metricas import medir
+from metricas import medir, CronometroTurno
 from comandos import es_comando, COMANDOS_SALIDA, COMANDOS_REINICIO
+from atajos import resolver_atajo
 from config import (
     MODELO_WHISPER,
     PALABRA_ACTIVACION,
@@ -110,7 +112,169 @@ def ejecutar_herramienta(nombre: str, argumentos: dict) -> str:
 _ejecutar_herramienta = ejecutar_herramienta
 
 
+def ejecutar_turno_streaming(
+    texto_usuario: str,
+    contexto: list,
+    tiempos: dict,
+    cronometro,
+    panel=None,
+) -> str:
+    """
+    Turno completo con streaming en tiempo real (F2-02, optimizado).
+
+    Flujo de rondas
+    ───────────────
+    1. Solicita un stream a procesar_pensamiento_stream(contexto).
+    2. Lee el primer chunk para decidir el modo de la ronda:
+       a) tool_calls  → acumula todo el stream sin hablar, ejecuta herramientas
+                        y repite la ronda (hasta MAX_RONDAS_TOOLS).
+       b) texto       → crea un generador en vivo que emite el primer fragmento
+                        ya recibido y sigue consumiendo el stream en tiempo real,
+                        acumulando partes simultáneamente para reconstruir
+                        texto_final. El generador alimenta directamente a
+                        extraer_frases() → reproducir_frases_streaming() sin
+                        esperar al final del stream de Ollama.
+       c) _error      → devuelve mensaje de error sin hablar.
+
+    Garantiza que config.STREAMING=False nunca llega aquí.
+    """
+    # ── Atajo rápido (misma lógica que el modo normal) ────────────────────────
+    if config.ATAJOS:
+        atajo = resolver_atajo(texto_usuario)
+        if atajo:
+            nombre_tool, args = atajo
+            logging.info("[STR] Atajo detectado: %s", nombre_tool)
+            if panel:
+                panel.actualizar_satelite(3, 2, "Ejecutando Tool", nombre_tool)
+            resultado = ejecutar_herramienta(nombre_tool, args)
+            contexto.append({"role": "assistant", "content": f"Ejecutando orden directa: {nombre_tool}"})
+            tiempos["llm"] = 0
+            return resultado
+
+    texto_final = ""
+    rondas = 0
+
+    while rondas <= config.MAX_RONDAS_TOOLS:
+
+        stream = procesar_pensamiento_stream(contexto)
+
+        # ── Leer el primer chunk para decidir el modo de la ronda ─────────────
+        try:
+            primer_chunk = next(iter(stream))
+        except StopIteration:
+            # Stream vacío inesperado
+            break
+
+        # Caso error
+        if primer_chunk.get("_error"):
+            msg = primer_chunk.get("message") or {}
+            texto_final = msg.get("content") or "No pude pensar eso ahora. Revisa que Ollama esté corriendo."
+            break
+
+        primer_msg = primer_chunk.get("message") or {}
+        primer_content = primer_msg.get("content") or ""
+        primer_tc = primer_msg.get("tool_calls")
+
+        # ── Caso tool_calls: acumular sin hablar ──────────────────────────────
+        if primer_tc:
+            tool_calls_acum = list(primer_tc)
+            content_acum = [primer_content]
+            for chunk in stream:
+                if chunk.get("_error"):
+                    break
+                msg = chunk.get("message") or {}
+                content_acum.append(msg.get("content") or "")
+                tc = msg.get("tool_calls")
+                if tc:
+                    tool_calls_acum.extend(tc)
+
+            contenido_texto = "".join(content_acum).strip()
+            msg_asistente = {"role": "assistant", "content": contenido_texto, "tool_calls": tool_calls_acum}
+            contexto.append(msg_asistente)
+            for tc in tool_calls_acum:
+                nombre, args = _extraer_llamada(tc)
+                if panel:
+                    panel.actualizar_satelite(3, 2, "Ejecutando Tool", nombre)
+                resultado_tool = ejecutar_herramienta(nombre, args)
+                contexto.append({"role": "tool", "tool_name": nombre, "content": resultado_tool})
+            rondas += 1
+            continue
+
+        # ── Caso texto: generador en vivo → TTS en tiempo real ───────────────
+        # partes_texto acumula los fragmentos para reconstruir texto_final
+        # sin bloquear el flujo al TTS.
+        partes_texto = []
+        tool_calls_tardios = []  # Por si tool_calls llega en medio del texto
+
+        def _generador_texto():
+            """
+            Generador en vivo que emite el primer chunk ya leído y luego
+            sigue consumiendo el stream de Ollama chunk a chunk, acumulando
+            en partes_texto. Si aparece un tool_call tardío, lo guarda en
+            tool_calls_tardios y corta la emisión de texto.
+            """
+            # Emitir el primer fragmento de texto ya leído
+            if primer_content:
+                partes_texto.append(primer_content)
+                yield primer_content
+
+            for chunk in stream:
+                if chunk.get("_error"):
+                    break
+                msg = chunk.get("message") or {}
+                content = msg.get("content") or ""
+                tc = msg.get("tool_calls")
+                if tc:
+                    # Tool call tardío: cortar emisión de texto y guardarlo
+                    tool_calls_tardios.extend(tc)
+                    break
+                if content:
+                    partes_texto.append(content)
+                    yield content
+
+        frases_iter = extraer_frases(_generador_texto())
+        with medir("tts", tiempos):
+            reproducir_frases_streaming(
+                frases_iter,
+                on_start=cronometro.marcar_primer_audio,
+            )
+
+        texto_final = "".join(partes_texto).strip() or "Listo."
+
+        if tool_calls_tardios:
+            # Hubo tool_calls en medio del stream: guardar y procesar otra ronda
+            contexto.append({"role": "assistant", "content": texto_final, "tool_calls": tool_calls_tardios})
+            for tc in tool_calls_tardios:
+                nombre, args = _extraer_llamada(tc)
+                if panel:
+                    panel.actualizar_satelite(3, 2, "Ejecutando Tool", nombre)
+                resultado_tool = ejecutar_herramienta(nombre, args)
+                contexto.append({"role": "tool", "tool_name": nombre, "content": resultado_tool})
+            rondas += 1
+            continue
+
+        # Ronda de texto limpia: guardar en contexto y terminar
+        contexto.append({"role": "assistant", "content": texto_final})
+        break
+
+    return texto_final or "Listo."
+
+
 def ejecutar_turno(contexto: list) -> str:
+    texto_reconocido = ""
+    for msg in reversed(contexto):
+        if msg.get("role") == "user":
+            texto_reconocido = msg.get("content") or ""
+            break
+    if config.ATAJOS:
+        atajo = resolver_atajo(texto_reconocido)
+        if atajo:
+            nombre_tool, args = atajo
+            logging.info("Atajo detectado: %s", nombre_tool)
+            resultado = ejecutar_herramienta(nombre_tool, args)
+            contexto.append({"role": "assistant", "content": f"Ejecutando orden directa: {nombre_tool}"})
+            return resultado
+
     respuesta = procesar_pensamiento(contexto)
     if not respuesta.get("_error"):
         contexto.append(respuesta)
@@ -140,13 +304,19 @@ def bucle_voz_secundario(detener: threading.Event = None, panel=None, api_js=Non
 
     logging.info("Jinx Asistente arrancado. Di 'salir', 'apagar' o 'detener' para cerrar.")
 
-    # ── Fase 4: construir el índice RAG una sola vez al arrancar ──
-    logging.info("[RAG] Cargando bóveda de Obsidian en memoria...")
-    construir_indice(panel=panel)
-    cantidad = obtener_cantidad_fragmentos()
-    if panel:
-        panel.actualizar_satelite(3, 3, "Memoria RAG", f"{cantidad} fragmentos listos")
-    logging.info("[RAG] Bóveda lista para consultas.")
+    # ── Fase 4 / F2-07: construir el índice RAG en segundo plano (hilo daemon) ──
+    # Se lanza antes del bucle de voz para que el micrófono arranque de inmediato.
+    # Si el usuario habla mientras el índice aún se construye, buscar_semantica()
+    # devuelve "Sigo preparando mis notas, dame un momento." sin bloquear.
+    def _construir_indice_bg():
+        logging.info("[RAG] Cargando bóveda de Obsidian en segundo plano...")
+        construir_indice(panel=panel)
+        logging.info("[RAG] Índice listo en segundo plano.")
+        cantidad = obtener_cantidad_fragmentos()
+        if panel:
+            panel.actualizar_satelite(3, 3, "Memoria RAG", f"{cantidad} fragmentos listos")
+
+    threading.Thread(target=_construir_indice_bg, daemon=True, name="rag-indexer").start()
 
     contexto = [{"role": "system", "content": SYSTEM_PROMPT}]
     # Conectar el contexto mutable a la API inversa para Emergency Flush
@@ -184,6 +354,10 @@ def bucle_voz_secundario(detener: threading.Event = None, panel=None, api_js=Non
             inicio_turno = time.time()
             tiempos: dict = {}
 
+            # F2-06: Cronómetro de alta precisión para TTFA y duración total
+            cronometro = CronometroTurno()
+            cronometro.t_inicio_turno = time.perf_counter()
+
             logging.info("¡Despierta!")
             reproducir_voz("Dime")
             time.sleep(0.3)
@@ -198,6 +372,8 @@ def bucle_voz_secundario(detener: threading.Event = None, panel=None, api_js=Non
                     phrase_time_limit=PHRASE_TIME_LIMIT,
                     panel=panel,
                 )
+            # F2-06: El usuario terminó de hablar → referencia para calcular TTFA
+            cronometro.marcar_fin_usuario()
 
             if texto_usuario and texto_usuario.strip():
                 texto_reconocido = texto_usuario.strip()
@@ -237,52 +413,95 @@ def bucle_voz_secundario(detener: threading.Event = None, panel=None, api_js=Non
                 if api_js is not None:
                     api_js.contexto = contexto
 
-                n_previo = len(contexto)
-                with medir("llm_turno", tiempos):
-                    respuesta = procesar_pensamiento(contexto)
-                    if not respuesta.get("_error"):
-                        contexto.append(respuesta)
+                # ── Bifurcación streaming / clásico (F2-02) ──────────────────
+                if config.STREAMING:
+                    # Modo streaming: LLM + TTS por frases en paralelo
+                    panel.actualizar_estado(3)
+                    panel.actualizar_satelite(3, 1, "Inferencia", "Streaming...")
+                    with medir("llm", tiempos):
+                        texto_final = ejecutar_turno_streaming(
+                            texto_reconocido, contexto, tiempos, cronometro, panel
+                        )
+                    cronometro.finalizar_turno()
+                    logging.info("Respuesta Jinx [STR]: %s", texto_final)
+                    # El panel se actualiza con TTFA ya calculado por marcar_primer_audio
+                    ttfa_display = int(cronometro.ttfa_ms) if cronometro.ttfa_ms > 0 else int((time.time() - inicio_turno) * 1000)
+                    panel.actualizar_respuesta(texto_final, ttfa_display)
 
-                    rondas = 0
-                    while respuesta.get("tool_calls") and rondas < config.MAX_RONDAS_TOOLS:
-                        for tc in respuesta["tool_calls"]:
-                            nombre, args = _extraer_llamada(tc)
-                            if panel:
-                                panel.actualizar_satelite(3, 2, "Ejecutando Tool", nombre)
-                            resultado = ejecutar_herramienta(nombre, args)
-                            # F1-11: Asegurar que se envía tool_name
-                            contexto.append({"role": "tool", "tool_name": nombre, "content": resultado})
+                else:
+                    # Modo clásico: LLM completo → TTS completo (comportamiento original intacto)
+                    atajo = resolver_atajo(texto_reconocido) if config.ATAJOS else None
+                    if atajo:
+                        nombre_tool, args = atajo
+                        logging.info("Atajo detectado: %s", nombre_tool)
+                        if panel:
+                            panel.actualizar_satelite(3, 2, "Ejecutando Tool", nombre_tool)
+                        resultado = ejecutar_herramienta(nombre_tool, args)
+                        contexto.append({"role": "assistant", "content": f"Ejecutando orden directa: {nombre_tool}"})
+                        texto_final = resultado
+                        tiempos["llm"] = 0
+                    else:
+                        with medir("llm", tiempos):
+                            respuesta = procesar_pensamiento(contexto)
+                            if not respuesta.get("_error"):
+                                contexto.append(respuesta)
 
-                        respuesta = procesar_pensamiento(contexto)
-                        if not respuesta.get("_error"):
-                            contexto.append(respuesta)
-                        rondas += 1
+                            rondas = 0
+                            while respuesta.get("tool_calls") and rondas < config.MAX_RONDAS_TOOLS:
+                                for tc in respuesta["tool_calls"]:
+                                    nombre, args = _extraer_llamada(tc)
+                                    if panel:
+                                        panel.actualizar_satelite(3, 2, "Ejecutando Tool", nombre)
+                                    resultado = ejecutar_herramienta(nombre, args)
+                                    # F1-11: Asegurar que se envía tool_name
+                                    contexto.append({"role": "tool", "tool_name": nombre, "content": resultado})
 
-                    texto_final = (respuesta.get("content") or "").strip() or "Listo."
+                                respuesta = procesar_pensamiento(contexto)
+                                if not respuesta.get("_error"):
+                                    contexto.append(respuesta)
+                                rondas += 1
 
-                # F1-13: Mostrar texto en el panel UI antes de reproducir TTS
-                latencia_ms = int((time.time() - inicio_turno) * 1000)
-                panel.actualizar_respuesta(texto_final, latencia_ms)
+                            texto_final = (respuesta.get("content") or "").strip() or "Listo."
 
-                logging.info("Respuesta Jinx: %s", texto_final)
+                    # F1-13: Mostrar texto en el panel UI antes de reproducir TTS
+                    latencia_ms = int((time.time() - inicio_turno) * 1000)
+                    panel.actualizar_respuesta(texto_final, latencia_ms)
 
-                # ── Estado 4: Síntesis — TTS generando y reproduciendo audio ──
-                panel.actualizar_estado(4)
-                panel.actualizar_satelite(4, 1, "Síntesis TTS", "Procesando audio")
-                if panel:
-                    panel.actualizar_satelite(4, 2, "Pygame Mixer", "Reproduciendo audio...")
-                logging.info("Jinx respondiendo con voz...")
-                with medir("tts", tiempos):
-                    reproducir_voz(texto_final)
-                if panel:
-                    panel.actualizar_satelite(4, 2, "Pygame Mixer", "En espera")
+                    logging.info("Respuesta Jinx: %s", texto_final)
+
+                    # ── Estado 4: Síntesis — TTS generando y reproduciendo audio ──
+                    panel.actualizar_estado(4)
+                    panel.actualizar_satelite(4, 1, "Síntesis TTS", "Procesando audio")
+                    if panel:
+                        panel.actualizar_satelite(4, 2, "Pygame Mixer", "Reproduciendo audio...")
+                    logging.info("Jinx respondiendo con voz...")
+                    with medir("tts", tiempos):
+                        # F2-06: on_start dispara marcar_primer_audio() justo antes del primer sample
+                        reproducir_voz(texto_final, on_start=cronometro.marcar_primer_audio)
+                    if panel:
+                        panel.actualizar_satelite(4, 2, "Pygame Mixer", "En espera")
+                    # F2-06: Turno terminado (incluye TTS completo)
+                    cronometro.finalizar_turno()
                 time.sleep(0.8)  # Purga el buffer del micrófono y evita captura de eco
+
 
                 # ── Estado 5: Completado — turno finalizado ──
                 latencia_ms = int((time.time() - inicio_turno) * 1000)
                 panel.actualizar_estado(5)
-                panel.actualizar_respuesta(texto_final, latencia_ms)
+                # F2-06: Mostrar TTFA como latencia principal en el panel
+                ttfa_display = int(cronometro.ttfa_ms) if cronometro.ttfa_ms > 0 else latencia_ms
+                panel.actualizar_respuesta(texto_final, ttfa_display)
+                # F2-06: Añadir métricas honestas al diccionario de telemetría
+                tiempos["ttfa"] = cronometro.ttfa_ms
+                tiempos["total"] = cronometro.turno_ms
+                logging.info(
+                    "[METRICA_HONESTA] TTFA: %.0f ms | Turno total: %.0f ms",
+                    cronometro.ttfa_ms,
+                    cronometro.turno_ms,
+                )
                 logging.info("[TURNO] %s", {k: round(v) for k, v in tiempos.items()})
+                if panel:
+                    panel.actualizar_tiempos(tiempos)
 
                 # Latido del pipeline - Reset visual
                 if panel:
@@ -312,7 +531,18 @@ def bucle_voz_secundario(detener: threading.Event = None, panel=None, api_js=Non
     except Exception:
         pass
 
+
+def verificar_ollama(modelo: str = config.MODELO_LLM) -> None:
+    try:
+        instalados = {m.model for m in ollama.list().models}
+    except Exception as e:
+        raise RuntimeError("Ollama no responde. Ábrelo y reintenta.") from e
+    if not any(n.startswith(modelo) for n in instalados):
+        raise RuntimeError(f"Falta el modelo. Ejecuta: ollama pull {modelo}")
+
+
 if __name__ == "__main__":
+    verificar_ollama()
     # Holder mutable compartido entre el hilo de voz y la API inversa.
     # El hilo asigna holder[0] cuando inicializa el contexto;
     # InterfazAPI.limpiar_memoria_ui() lo limpia vía api_js.contexto.

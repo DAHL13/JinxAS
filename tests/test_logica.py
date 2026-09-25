@@ -40,6 +40,7 @@ for mod in MODULOS_PESADOS:
 
 # Importación segura de módulos bajo prueba
 import config
+from comandos import COMANDOS_SALIDA, COMANDOS_REINICIO
 from main import normalizar, _extraer_llamada
 from memoria import _normalizar_nombre_archivo
 
@@ -52,7 +53,7 @@ def test_comandos_salida_coincidencia_exacta():
     """Verifica que '¡Salir!' se normalice a 'salir' y coincida con COMANDOS_SALIDA."""
     resultado = normalizar("¡Salir!")
     assert resultado == "salir"
-    assert resultado in config.COMANDOS_SALIDA
+    assert resultado in COMANDOS_SALIDA
 
 
 def test_frase_con_palabra_salida_no_coincide():
@@ -60,7 +61,7 @@ def test_frase_con_palabra_salida_no_coincide():
     frase = "recuérdame salir a las cinco"
     resultado = normalizar(frase)
     assert resultado == "recuerdame salir a las cinco"
-    assert resultado not in config.COMANDOS_SALIDA
+    assert resultado not in COMANDOS_SALIDA
 
 
 @pytest.mark.parametrize(
@@ -76,14 +77,14 @@ def test_variaciones_comandos_salida(entrada, esperado):
     """Prueba mayúsculas, tildes y signos de puntuación en comandos de salida."""
     resultado = normalizar(entrada)
     assert resultado == esperado
-    assert resultado in config.COMANDOS_SALIDA
+    assert resultado in COMANDOS_SALIDA
 
 
 def test_frases_reinicio():
     """Verifica que frases de reinicio se normalicen adecuadamente."""
     resultado = normalizar("¡Olvida todo!")
     assert resultado == "olvida todo"
-    assert resultado in config.FRASES_REINICIO
+    assert resultado in COMANDOS_REINICIO
 
 
 def test_texto_vacio_y_espacios():

@@ -43,6 +43,16 @@ class ControladorPanel:
         """Actualiza el texto de la última respuesta y la latencia en ms."""
         self._eval(f"window.jinxUI.setRespuesta({json.dumps(texto)}, {int(latencia)})")
 
+    def actualizar_tiempos(self, tiempos: dict) -> None:
+        """Actualiza las métricas de telemetría de tiempos en el panel UI."""
+        if not self.ventana:
+            return
+        tiempos_seguros = json.dumps(tiempos)
+        try:
+            self._eval(f"if(window.jinxUI && window.jinxUI.setTiempos) {{ window.jinxUI.setTiempos({tiempos_seguros}); }}")
+        except Exception as e:
+            logging.warning("Error al actualizar tiempos en UI: %s", e)
+
     def actualizar_satelite(self, hub: int, sat: int, titulo: str = None, desc: str = None) -> None:
         """Actualiza dinámicamente el título y descripción de cualquier satélite en el panel."""
         if not self.ventana:

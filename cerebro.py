@@ -160,6 +160,45 @@ def procesar_pensamiento(mensajes: list, modelo: str = MODELO_LLM, usar_tools: b
             "content": "No pude pensar eso ahora. Revisa que Ollama est\u00e9 corriendo.",
         }
 
+
+def procesar_pensamiento_stream(mensajes: list, modelo: str = MODELO_LLM):
+    """
+    Versión streaming de procesar_pensamiento (F2-02).
+    Llama a ollama.chat con stream=True y emite los chunks del generador
+    tal como los devuelve la API, permitiendo TTS por frases en paralelo.
+
+    Cada chunk tiene la estructura:
+        {"message": {"role": "assistant", "content": "...", "tool_calls": [...]}}
+
+    En caso de error, emite un único chunk con _error=True para que el
+    consumidor pueda detectarlo sin colapsar el hilo de voz.
+
+    Yields
+    ------
+    dict
+        Chunk de Ollama o dict de error con clave "_error".
+    """
+    try:
+        for chunk in ollama.chat(
+            model=modelo,
+            messages=mensajes,
+            tools=ESQUEMAS_HERRAMIENTAS,
+            options=config.LLM_OPCIONES,
+            keep_alive=config.LLM_KEEP_ALIVE,
+            stream=True,
+        ):
+            yield chunk
+    except Exception as e:
+        logging.error("Ollama falló en stream: %s", e)
+        yield {
+            "message": {
+                "role": "assistant",
+                "content": "No pude pensar eso ahora. Revisa que Ollama esté corriendo.",
+            },
+            "_error": True,
+        }
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
     mensaje_prueba = "¿Cómo está el estado de la computadora?"

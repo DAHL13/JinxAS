@@ -35,11 +35,11 @@ except ImportError:
 
 URL_CLIMA = f"https://wttr.in/{CIUDAD_POR_DEFECTO}?format=%C+%t"
 
-COMANDOS_SALIDA = {"salir", "cancelar", "apagar", "detener", "hasta luego"}
-FRASES_REINICIO = {"olvida todo", "borra la memoria", "nueva conversacion"}
 MAX_RONDAS_TOOLS = 3
 
-LLM_OPCIONES = {"temperature": 0.3, "num_ctx": 4096}
+ATAJOS = True
+STREAMING = False          # True → TTS por frases con menor TTFA (F2-02)
+LLM_OPCIONES = {"temperature": 0.3, "num_ctx": 2048, "num_predict": 160}
 LLM_KEEP_ALIVE = "30m"
 
 PROMPT_INICIAL_WHISPER = (

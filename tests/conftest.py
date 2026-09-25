@@ -12,5 +12,7 @@ for nombre in (
     "sentence_transformers",
     "webview",
     "psutil",
+    "thefuzz",
+    "thefuzz.fuzz",
 ):
     sys.modules.setdefault(nombre, MagicMock())

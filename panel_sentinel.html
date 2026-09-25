@@ -173,10 +173,19 @@
 </div>
 <!-- Live Status Metric & Actions -->
 <div class="flex items-center gap-space-md">
-<div class="hidden lg:flex items-center gap-space-xs px-space-sm py-1 bg-surface-container-low rounded-lg border border-outline-variant/30">
+<div class="hidden lg:flex items-center gap-2 px-3 py-1 bg-surface-container-low rounded-lg border border-outline-variant/30">
 <span class="inline-block w-2 h-2 rounded-full bg-tertiary-fixed-variant animate-pulse" id="orbitPulseLed"></span>
-<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">E2E LATENCY:</span>
-<span class="font-label-code-sm text-label-code-sm text-primary font-bold" id="headerLatency">82 ms</span>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">STT:</span>
+<span class="font-label-code-sm text-label-code-sm text-secondary font-bold" id="metric-stt">-- ms</span>
+<span class="text-outline-variant/40 text-xs">·</span>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">LLM:</span>
+<span class="font-label-code-sm text-label-code-sm text-primary font-bold" id="metric-llm">-- ms</span>
+<span class="text-outline-variant/40 text-xs">·</span>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">TTS:</span>
+<span class="font-label-code-sm text-label-code-sm text-amber-600 font-bold" id="metric-tts">-- ms</span>
+<span class="text-outline-variant/40 text-xs">|</span>
+<span class="font-label-code-sm text-label-code-sm text-on-surface-variant">E2E:</span>
+<span class="font-label-code-sm text-label-code-sm text-primary font-bold" id="headerLatency">78 ms</span>
 </div>
 <div class="hidden sm:flex items-center gap-1 text-on-surface-variant">
 <button class="p-1.5 hover:text-primary rounded-lg hover:bg-surface-container transition-colors" title="Audio Waveform"><span class="material-symbols-outlined text-headline-sm" data-icon="graphic_eq">graphic_eq</span></button>
@@ -755,6 +764,41 @@
       }
       const lat = document.getElementById('headerLatency');
       if (lat) lat.textContent = `${latenciaMs} ms`;
+    },
+    setTiempos: function(tiempos) {
+      if (!tiempos) return;
+      // tiempos es un objeto como {stt: 1500, llm: 2300, tts: 800, ttfa: 950, total: 5200}
+
+      const sttEl = document.getElementById('metric-stt');
+      if (sttEl && tiempos.stt) sttEl.textContent = `${Math.round(tiempos.stt)} ms`;
+
+      const llmVal = tiempos.llm || tiempos.llm_turno;
+      const llmEl = document.getElementById('metric-llm');
+      if (llmEl && llmVal) llmEl.textContent = `${Math.round(llmVal)} ms`;
+
+      const ttsEl = document.getElementById('metric-tts');
+      if (ttsEl && tiempos.tts) ttsEl.textContent = `${Math.round(tiempos.tts)} ms`;
+
+      // F2-06: Métrica TTFA (Time To First Audio) — latencia honesta
+      const ttfaEl = document.getElementById('metric-ttfa');
+      if (ttfaEl && tiempos.ttfa != null) ttfaEl.textContent = `${Math.round(tiempos.ttfa)} ms`;
+
+      // F2-06: Turno total (incluye TTS completo)
+      const totalEl = document.getElementById('metric-total');
+      if (totalEl && tiempos.total != null) totalEl.textContent = `${Math.round(tiempos.total)} ms`;
+
+      // F2-06: Mostrar TTFA en headerLatency (latencia percibida real)
+      // Si TTFA no está disponible se cae al cálculo anterior como fallback
+      const latEl = document.getElementById('headerLatency');
+      if (latEl) {
+        if (tiempos.ttfa != null && tiempos.ttfa > 0) {
+          latEl.textContent = `${Math.round(tiempos.ttfa)} ms TTFA`;
+        } else {
+          let total = 0;
+          for (let key in tiempos) { total += tiempos[key]; }
+          latEl.textContent = `${Math.round(total)} ms E2E`;
+        }
+      }
     },
     actualizarSatelite: function(hub, sat, titulo, desc) {
       const elTitulo = document.getElementById(`sat-${hub}-${sat}-titulo`);

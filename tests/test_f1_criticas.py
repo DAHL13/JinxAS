@@ -7,13 +7,14 @@ import memoria_rag
 from interfaz import ControladorPanel
 import cerebro
 from main import ejecutar_turno
+from percepcion import filtrar_transcripcion
 
 
 def test_f1_06_asegurar_indice_inicializa_cuando_es_none():
     """F1-06: _asegurar_indice crea un IndexFlatL2 si _indice es None."""
     memoria_rag._indice = None
     with patch("memoria_rag._obtener_modelo") as mock_modelo, \
-         patch("memoria_rag.faiss.IndexFlatL2") as mock_faiss_l2:
+         patch("faiss.IndexFlatL2") as mock_faiss_l2:
         mock_modelo.return_value.get_sentence_embedding_dimension.return_value = 384
         memoria_rag._asegurar_indice()
         mock_faiss_l2.assert_called_once_with(384)
@@ -46,6 +47,29 @@ def test_f1_07_actualizar_respuesta_escapa_json():
     assert json.dumps(texto_complejo) in llamada_js
     assert "345" in llamada_js
     assert "window.jinxUI.setRespuesta" in llamada_js
+
+
+def test_actualizar_tiempos_escapa_json_y_llama_js():
+    """Verifica que actualizar_tiempos formatea el dict a JSON y llama a window.jinxUI.setTiempos."""
+    panel = ControladorPanel()
+    mock_ventana = MagicMock()
+    panel.ventana = mock_ventana
+
+    tiempos = {"stt": 1250.4, "llm": 2340.1, "tts": 780.0}
+    panel.actualizar_tiempos(tiempos)
+
+    mock_ventana.evaluate_js.assert_called_once()
+    llamada_js = mock_ventana.evaluate_js.call_args[0][0]
+    assert "window.jinxUI.setTiempos" in llamada_js
+    assert json.dumps(tiempos) in llamada_js
+
+
+def test_actualizar_tiempos_sin_ventana_no_falla():
+    """Verifica que actualizar_tiempos retorna sin error si no hay ventana activa."""
+    panel = ControladorPanel()
+    panel.ventana = None
+    # No debe levantar ninguna excepción
+    panel.actualizar_tiempos({"stt": 100, "llm": 200, "tts": 300})
 
 
 def test_f1_09_cerebro_error_ollama_retorna_dict_error():
@@ -181,4 +205,18 @@ def test_f1_13_reproducir_voz_resiliencia_sin_red():
         reproducir_voz("Prueba de audio sin red")
         # El bloque finally debe descargar mixer para liberar archivos
         mock_unload.assert_called()
+
+
+def _resultado_whisper(texto: str) -> dict:
+    return {
+        "text": texto,
+        "segments": [{"no_speech_prob": 0.1, "avg_logprob": -0.5}],
+    }
+
+
+def test_filtrar_transcripcion():
+    """F1-10: descarta transcripciones cortas o alucinadas y deja pasar texto válido."""
+    assert filtrar_transcripcion(_resultado_whisper("enciende la luz")) == "enciende la luz"
+    assert filtrar_transcripcion(_resultado_whisper("a")) is None
+    assert filtrar_transcripcion(_resultado_whisper("gracias por ver el video")) is None
 
