@@ -15,6 +15,12 @@
 
 Jinx escucha de forma pasiva mediante un detector de wake word centinela, procesa intenciones mediante **tool calling nativo**, consulta y gestiona tus notas en Markdown compatibles con Obsidian, y ejecuta acciones en el sistema operativo mediante un canal de seguridad acotado y verificable.
 
+### 📚 Documentación Técnica y Recursos
+- 🏛️ **[Arquitectura del Sistema](docs/ARQUITECTURA.md):** Diagrama de flujo oficial en Mermaid y especificación de los 5 subsistemas principales.
+- 📊 **[Línea Base y Benchmarks](docs/BASELINE.md):** Mediciones de latencia, TTFA, rendimiento y consumo de RAM.
+- 🛠️ **[Guía de Solución de Problemas](docs/TROUBLESHOOTING.md):** Diagnósticos y soluciones prácticas para Windows 10/11.
+- 📜 **[Registro de Cambios (Changelog)](CHANGELOG.md):** Historial completo de versiones siguiendo la especificación Keep a Changelog.
+
 ---
 
 ## 🔒 Privacidad: Qué Sale de tu Equipo (y qué se queda en él)
@@ -35,12 +41,12 @@ En cumplimiento de una política de transparencia y honestidad técnica sobre lo
 
 ---
 
-## 🛡️ Seguridad Comprobable
+## 🛡️ Seguridad Comportable
 
 El diseño de JinxAS elimina vectores comunes de vulnerabilidad en asistentes de escritorio mediante barreras defensivas verificables en código:
 
-1. **Lanzamiento de Aplicaciones con Allowlist Estricto (`herramientas.py`):**
-   - El catálogo de aplicaciones permitidas está acotado exclusivamente en `MAPA_APLICACIONES` ([config.py](config.py)).
+1. **Lanzamiento de Aplicaciones con Allowlist Estricto (`jinxas/herramientas.py`):**
+   - El catálogo de aplicaciones permitidas está acotado exclusivamente en `MAPA_APLICACIONES` ([jinxas/config.py](jinxas/config.py)).
    - **Binarios ejecutables (`exe:`):** Se resuelve la ruta en el `PATH` mediante `shutil.which` y se lanza con `subprocess.Popen([ruta], shell=False, creationflags=CREATE_NO_WINDOW)`. **No se utiliza `cmd /c start`, ni `shell=True`, ni llamadas directas a terminales**, erradicando la inyección arbitraria de comandos.
    - **Protocolos seguros (`uri:`):** Se despachan con `os.startfile` limitados a esquemas registrados (`spotify:`, `discord:`, `obsidian://`), impidiendo el escape a ejecutables fuera del allowlist.
 
@@ -56,7 +62,7 @@ El diseño de JinxAS elimina vectores comunes de vulnerabilidad en asistentes de
    - En nivel **`INFO`** (por defecto), `logs/jinx.log` únicamente registra metadatos no sensibles: nombre de la herramienta llamada, tiempos de ejecución y longitud en caracteres de los resultados (`len(resultado)`).
    - El contenido de notas o textos hablados **nunca se escribe en disco** en producción. Solo se emite si el usuario activa voluntariamente `JINX_LOG=DEBUG`.
 
-4. **Blindaje de Sistema de Archivos (`memoria.py`):**
+4. **Blindaje de Sistema de Archivos (`jinxas/memoria.py`):**
    - Prevención activa de *Path Traversal* (`..`) y sanitización de caracteres ilegales en Windows (`\ / : * ? " < > |`).
    - Bloqueo de nombres de archivo reservados de Windows (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`).
 
@@ -64,18 +70,18 @@ El diseño de JinxAS elimina vectores comunes de vulnerabilidad en asistentes de
 
 ## 🧰 Catálogo de Herramientas Registradas (F4-06)
 
-JinxAS utiliza un registro único desacoplado ([registro.py](registro.py)) mediante el decorador `@herramienta`, el cual construye esquemas JSON Schema formales para Ollama. Dispone de **8 herramientas activas**:
+JinxAS utiliza un registro único desacoplado ([jinxas/registro.py](jinxas/registro.py)) mediante el decorador `@herramienta`, el cual construye esquemas JSON Schema formales para Ollama. Dispone de **8 herramientas activas**:
 
 | Herramienta | Módulo | Parámetros | Descripción técnica |
 |---|---|---|---|
-| `obtener_estado_sistema` | [herramientas.py](herramientas.py) | *Ninguno* | Consulta métricas en tiempo real con `psutil`: porcentaje de CPU, uso de memoria RAM (GB usados/totales) y espacio en disco. |
-| `obtener_temperatura` | [herramientas.py](herramientas.py) | *Ninguno* | Lee sensores térmicos de la CPU y placa vía WMI/PowerShell. Si el hardware no expone sensores por permisos, provee un fallback honesto con el uso de CPU. |
-| `abrir_aplicacion` | [herramientas.py](herramientas.py) | `nombre_app: str` | Lanza una aplicación del allowlist (`MAPA_APLICACIONES`). Valida mediante `shutil.which` sin intermediación de shell o `os.startfile` para URIs. |
-| `obtener_clima` | [herramientas.py](herramientas.py) | *Ninguno* | Consulta el clima exterior y temperatura en la ciudad configurada mediante `wttr.in`, con URL encoding y manejo de timeouts. |
-| `obtener_fecha_hora` | [herramientas.py](herramientas.py) | *Ninguno* | Obtiene la fecha y hora actual del sistema formateada en español. |
-| `consultar_boveda` | [herramientas.py](herramientas.py) | `consulta: str` | Búsqueda semántica conceptual en tus notas usando el motor vectorial RAG (FAISS + MiniLM). |
-| `guardar_nota` | [memoria.py](memoria.py) | `titulo: str`, `contenido: str` | Crea o actualiza notas en `Boveda_Obsidian/` con timestamp automático, sanitización de nombres y actualización incremental del índice FAISS. |
-| `buscar_nota` | [memoria.py](memoria.py) | `palabra_clave: str` | Búsqueda literal exhaustiva por subcadena en títulos y contenidos de todas las notas Markdown. |
+| `obtener_estado_sistema` | [jinxas/herramientas.py](jinxas/herramientas.py) | *Ninguno* | Consulta métricas en tiempo real con `psutil`: porcentaje de CPU, uso de memoria RAM (GB usados/totales) y espacio en disco. |
+| `obtener_temperatura` | [jinxas/herramientas.py](jinxas/herramientas.py) | *Ninguno* | Lee sensores térmicos de la CPU y placa vía WMI/PowerShell. Si el hardware no expone sensores por permisos, provee un fallback honesto con el uso de CPU. |
+| `abrir_aplicacion` | [jinxas/herramientas.py](jinxas/herramientas.py) | `nombre_app: str` | Lanza una aplicación del allowlist (`MAPA_APLICACIONES`). Valida mediante `shutil.which` sin intermediación de shell o `os.startfile` para URIs. |
+| `obtener_clima` | [jinxas/herramientas.py](jinxas/herramientas.py) | *Ninguno* | Consulta el clima exterior y temperatura en la ciudad configurada mediante `wttr.in`, con URL encoding y manejo de timeouts. |
+| `obtener_fecha_hora` | [jinxas/herramientas.py](jinxas/herramientas.py) | *Ninguno* | Obtiene la fecha y hora actual del sistema formateada en español. |
+| `consultar_boveda` | [jinxas/herramientas.py](jinxas/herramientas.py) | `consulta: str` | Búsqueda semántica conceptual en tus notas usando el motor vectorial RAG (FAISS + MiniLM). |
+| `guardar_nota` | [jinxas/memoria.py](jinxas/memoria.py) | `titulo: str`, `contenido: str` | Crea o actualiza notas en `Boveda_Obsidian/` con timestamp automático, sanitización de nombres y actualización incremental del índice FAISS. |
+| `buscar_nota` | [jinxas/memoria.py](jinxas/memoria.py) | `palabra_clave: str` | Búsqueda literal exhaustiva por subcadena en títulos y contenidos de todas las notas Markdown. |
 
 ---
 
@@ -121,12 +127,17 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
+*(Opcional) Para instalar en modo editable y habilitar el comando global `jinx`:*
+```bash
+pip install -e .
+```
+
 ### 3. Verificar el estado del proyecto con la suite de pruebas
 La suite de pruebas unitarias está desacoplada de hardware pesado y se ejecuta en menos de un segundo:
 ```bash
 python -m pytest -q
 ```
-*(147 pruebas pasando en verde)*.
+*(188 pruebas pasando en verde)*.
 
 Para evaluar la precisión del enrutamiento de herramientas contra el LLM real:
 ```bash
@@ -134,8 +145,17 @@ python tests/eval_tools.py -v
 ```
 
 ### 4. Iniciar Jinx
+Gracias al empaquetado formal bajo el estándar PEP 621, el asistente se puede iniciar de tres maneras equivalentes:
+
 ```bash
+# Opción A: Ejecución como paquete modular (Recomendada)
+python -m jinxas
+
+# Opción B: Shim retrocompatible desde la raíz
 python main.py
+
+# Opción C: Comando CLI en consola (si se ejecutó pip install -e .)
+jinx
 ```
 Se abrirá la ventana gráfica del panel **SENTINEL** y se iniciará el centinela pasivo de audio.
 
@@ -143,37 +163,52 @@ Se abrirá la ventana gráfica del panel **SENTINEL** y se iniciará el centinel
 
 ## 📁 Estructura del Repositorio
 
-```
+```text
 JinxAS/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml             # Pipeline de Integración Continua (GitHub Actions)
-├── tests/
-│   ├── conftest.py            # Mocks globales de dependencias pesadas
-│   ├── test_f1_criticas.py    # Pruebas de bucle de voz y tool calls
-│   ├── test_f2_latencia.py    # Pruebas de TTFA, streaming y métricas
-│   ├── test_f3_memoria.py     # Pruebas de seguridad en nombres de archivo
-│   ├── test_f3_rag.py         # Pruebas de indexación y búsqueda semántica
-│   ├── test_f4_herramientas.py# Pruebas de allowlist y tools seguras
-│   ├── test_f5_seguridad.py   # Pruebas de envoltorio anti-inyección y logs higienizados
-│   └── eval_tools.py          # Benchmark de enrutamiento LLM (17 casos de prueba)
-├── main.py                    # Orquestador principal, ciclo de vida y despacho de tools
-├── config.py                  # Configuración centralizada, allowlist y variables de entorno
-├── registro.py                # Registro único de herramientas (@herramienta)
-├── percepcion.py              # STT: Modo Centinela (wake word difuso) + Whisper local
-├── cerebro.py                 # LLM: Conexión a Ollama y despacho de pensamiento
-├── voz.py                     # TTS: Síntesis de voz con Edge-TTS y streaming de audio
-├── herramientas.py            # Herramientas del sistema (CPU, RAM, apps seguras, clima, RAG)
-├── memoria.py                 # Gestión de notas Markdown en Obsidian
-├── memoria_rag.py             # Motor RAG local con FAISS y SentenceTransformers
-├── interfaz.py                # Puente y API bidireccional pywebview
-├── panel_sentinel.html        # Panel gráfico SENTINEL // PIPELINE GRAPH
-├── pyproject.toml             # Configuración de herramientas y pytest
-├── requirements.in            # Dependencias directas de primer nivel
-├── requirements.txt           # Dependencias fijadas del proyecto
-├── LICENSE                    # Licencia de código abierto MIT (2026)
-├── .gitignore                 # Exclusiones de Git (cachés, índices FAISS, notas, .env)
-└── Boveda_Obsidian/           # Directorio local de notas Markdown
+│       └── ci.yml             # Pipeline de CI en Windows (Ruff + Pytest)
+├── docs/
+│   ├── ARQUITECTURA.md        # Diagrama de flujo Mermaid y subsistemas
+│   ├── BASELINE.md            # Línea base de hardware, latencias y telemetría
+│   └── TROUBLESHOOTING.md     # Guía de solución de problemas en Windows
+├── jinxas/                    # Paquete principal del asistente (PEP 621)
+│   ├── __init__.py            # Versión v0.5.0 y registro de módulo
+│   ├── __main__.py            # Orquestador del bucle de voz y GUI
+│   ├── atajos.py              # Enrutador determinista por regex (0 ms LLM)
+│   ├── cerebro.py             # Cliente Ollama, tool calling y métricas tok/s
+│   ├── comandos.py            # Normalización léxica y comandos de salida
+│   ├── config.py              # Configuración central y variables de entorno
+│   ├── conversacion.py        # Recorte de contexto puro anti-huérfanos
+│   ├── herramientas.py        # Tools: CPU, RAM, clima, apps seguras, fecha/hora
+│   ├── interfaz.py            # API pywebview y puente bidireccional
+│   ├── memoria.py             # CRUD de notas Markdown y blindaje de rutas
+│   ├── memoria_rag.py         # Motor RAG local (FAISS + MiniLM) e índice
+│   ├── metricas.py            # Telemetría de turnos y CronometroTurno
+│   ├── percepcion.py          # STT: Whisper centinela y Whisper comandos
+│   ├── registro.py            # Registro único de herramientas (@herramienta)
+│   └── voz.py                 # TTS: Edge-TTS streaming y reproductor pygame
+├── tests/                     # Suite de pruebas unitarias y de integración
+│   ├── conftest.py            # Mocks ligeros de hardware y modelos
+│   ├── test_f1_criticas.py
+│   ├── test_f2_latencia.py
+│   ├── test_f3_memoria.py
+│   ├── test_f3_rag.py
+│   ├── test_f4_herramientas.py
+│   ├── test_f5_seguridad.py
+│   ├── test_f7_atajos.py
+│   ├── test_f7_conversacion.py
+│   └── eval_tools.py          # Benchmark de enrutamiento Ollama
+├── ui/
+│   └── panel.html             # Panel SENTINEL 100% offline (sin CDNs)
+├── .gitignore                 # Exclusiones de git (caché, logs, bóveda)
+├── CHANGELOG.md               # Historial de cambios formal (Keep a Changelog)
+├── LICENSE                    # Licencia MIT (2026)
+├── main.py                    # Shim de compatibilidad de 3 líneas
+├── pyproject.toml             # Configuración PEP 621, Ruff y Pytest
+├── requirements.in            # 13 dependencias directas de primer nivel
+├── requirements-dev.txt       # Entorno ultraligero para CI y testing
+└── requirements.txt           # Entorno completo de producción
 ```
 
 ---
@@ -190,8 +225,8 @@ A raíz de una auditoría exhaustiva de arquitectura (septiembre de 2026), JinxA
 | **Fase 3** | Memoria y RAG robusto | ✅ | Prevención de *Path Traversal*, nombres reservados de Windows, lock de concurrencia y similitud normalizada FAISS. |
 | **Fase 4** | Herramientas confiables | ✅ | `registro.py` como fuente única de verdad, allowlist estricto `exe:`/`uri:`, eliminación de `cmd /c`, y benchmark `eval_tools.py`. |
 | **Fase 5** | Seguridad, privacidad y documentación | ✅ | Licencia MIT, logs higienizados (JINX_LOG), envoltura de tools y README veraz. |
-| **Fase 6** | Panel SENTINEL honesto y funcional | ⏳ | Eliminación de dependencias de CDNs externas (recursos 100% locales) y sincronización fiel con el estado del pipeline. |
-| **Fase 7** | Pruebas de integración, CI y cierre | ⏳ | Cobertura en GitHub Actions, verificación multiplataforma y empaquetado final. |
+| **Fase 6** | Panel SENTINEL honesto y funcional | ✅ | Panel SENTINEL 100% offline (sin CDNs), telemetría real (tok/s) y layout responsivo. |
+| **Fase 7** | Pruebas de integración, CI y cierre | ✅ | Paquete jinxas/, CI en GitHub Actions, 188 tests unitarios, ARQUITECTURA.md y v0.5.0. |
 
 ---
 
