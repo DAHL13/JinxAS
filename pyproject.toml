@@ -8,6 +8,8 @@ select = ["E", "F", "I", "B", "UP"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+# eval_tools.py es un script standalone; se excluye de pytest con el prefijo "eval_"
+python_files = ["test_*.py"]
 filterwarnings = [
     # edge_tts es un MagicMock/AsyncMock global; ignorar su corrutina sin await
     "ignore::RuntimeWarning:unittest.mock",

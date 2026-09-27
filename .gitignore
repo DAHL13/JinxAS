@@ -32,6 +32,7 @@ logs/
 # FAISS e índices
 *.faiss
 .cache/
+.jinx_cache/
 
 # Modelos descargados (si aplica)
 models/

@@ -5,30 +5,48 @@ import sys
 from datetime import datetime
 from config import RUTA_VAULT, TITULO_NOTA_MAX
 from memoria_rag import agregar_nota_al_indice
+from registro import herramienta
+
+# Nombres reservados de Windows (case-insensitive)
+_RESERVADOS = {
+    "con", "prn", "aux", "nul",
+    *(f"com{i}" for i in range(1, 10)),
+    *(f"lpt{i}" for i in range(1, 10)),
+}
+
 
 def _normalizar_nombre_archivo(titulo: str) -> str:
     """
-    Convierte un título a un nombre de archivo válido en formato .md.
-    Elimina caracteres no permitidos en nombres de archivo de Windows y nombres reservados.
+    Convierte un título a un nombre de archivo .md válido y seguro en Windows.
+    Elimina caracteres prohibidos (incluidos los de control), colapsa espacios,
+    trunca al máximo configurado y evita nombres reservados del sistema.
     """
-    RESERVADOS = {
-        "con", "prn", "aux", "nul",
-        "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
-        "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
-    }
-    nombre = titulo.strip()
-    if nombre.lower().endswith(".md"):
-        nombre = nombre[:-3]
-    # Reemplazar caracteres no permitidos en Windows: \ / : * ? " < > |
-    nombre = re.sub(r'[\\/:*?"<>|]', '', nombre)
-    # Reemplazar espacios múltiples con uno solo
-    nombre = re.sub(r'\s+', ' ', nombre)
-    nombre = nombre[:TITULO_NOTA_MAX]
-    base = nombre.rstrip(" .") or "Sin titulo"
-    if base.lower() in RESERVADOS:
-        base = f"{base}_"
-    return f"{base}.md"
+    base = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", titulo).strip().rstrip(". ")
+    base = re.sub(r"\s+", " ", base)[:TITULO_NOTA_MAX].rstrip(". ")
+    if not base or base.lower() in _RESERVADOS:
+        base = f"nota {base or 'sin titulo'}"
+    return base if base.lower().endswith(".md") else base + ".md"
 
+
+def _ruta_segura(nombre: str) -> str:
+    """
+    Resuelve la ruta completa de *nombre* dentro de RUTA_VAULT y verifica
+    que no escape de la bóveda (protección contra path traversal).
+    Lanza ValueError si la ruta resuelta queda fuera de la bóveda.
+    """
+    raiz = os.path.realpath(RUTA_VAULT)
+    ruta = os.path.realpath(os.path.join(raiz, nombre))
+    if os.path.commonpath([raiz, ruta]) != raiz:
+        raise ValueError("Ruta fuera de la bóveda")
+    return ruta
+
+@herramienta(
+    "Guarda o actualiza una nota Markdown en la bóveda de Obsidian.",
+    parametros={
+        "titulo": {"type": "string", "description": "Título de la nota."},
+        "contenido": {"type": "string", "description": "Texto a guardar en la nota."},
+    },
+)
 def guardar_nota(titulo: str, contenido: str) -> str:
     """
     Guarda o actualiza una nota Markdown en la bóveda de Obsidian.
@@ -41,12 +59,9 @@ def guardar_nota(titulo: str, contenido: str) -> str:
 
     os.makedirs(RUTA_VAULT, exist_ok=True)
     nombre_archivo = _normalizar_nombre_archivo(titulo)
-    ruta_archivo = os.path.join(RUTA_VAULT, nombre_archivo)
-
-    # Confinamiento de ruta dentro de la bóveda
-    ruta_vault_abs = os.path.abspath(RUTA_VAULT)
-    ruta_archivo_abs = os.path.abspath(ruta_archivo)
-    if os.path.commonpath([ruta_vault_abs, ruta_archivo_abs]) != ruta_vault_abs:
+    try:
+        ruta_archivo = _ruta_segura(nombre_archivo)
+    except ValueError:
         return "Error: Título no válido."
 
     ahora = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -57,7 +72,7 @@ def guardar_nota(titulo: str, contenido: str) -> str:
             with open(ruta_archivo, "a", encoding="utf-8") as f:
                 f.write(f"\n\n---\n**Actualización {ahora}:**\n\n{contenido}\n")
             try:
-                agregar_nota_al_indice(ruta_archivo, contenido)
+                agregar_nota_al_indice(ruta_archivo)
             except Exception as e:
                 logging.error("Error al sincronizar nota en RAG: %s", e)
             return f"Nota '{titulo}' actualizada correctamente en la bóveda ({ahora})."
@@ -69,7 +84,7 @@ def guardar_nota(titulo: str, contenido: str) -> str:
                 f.write(f"---\n\n")
                 f.write(f"{contenido}\n")
             try:
-                agregar_nota_al_indice(ruta_archivo, contenido)
+                agregar_nota_al_indice(ruta_archivo)
             except Exception as e:
                 logging.error("Error al sincronizar nota en RAG: %s", e)
             return f"Nota '{titulo}' creada correctamente en la bóveda ({ahora})."
@@ -78,6 +93,15 @@ def guardar_nota(titulo: str, contenido: str) -> str:
         logging.error("Error al guardar la nota '%s': %s", titulo, e)
         return f"Error al guardar la nota '{titulo}': {e}"
 
+@herramienta(
+    "Busca una palabra literal en títulos y contenido de las notas. Para preguntas conceptuales usa consultar_boveda.",
+    parametros={
+        "palabra_clave": {
+            "type": "string",
+            "description": "Palabra o tema a buscar en títulos y contenidos.",
+        }
+    },
+)
 def buscar_nota(palabra_clave: str) -> str:
     """
     Busca coincidencias de una palabra clave en los títulos y contenidos
@@ -91,7 +115,6 @@ def buscar_nota(palabra_clave: str) -> str:
         return "La bóveda está vacía. No hay notas guardadas aún."
 
     clave = palabra_clave.strip().lower()
-    resultados = []
 
     archivos_md = []
     try:
@@ -107,6 +130,10 @@ def buscar_nota(palabra_clave: str) -> str:
     if not archivos_md:
         return "La bóveda está vacía. No hay notas guardadas aún."
 
+    # Prioridad: coincidencias en el título primero, luego solo en contenido
+    hits_titulo = []     # (titulo, extracto)
+    hits_contenido = []  # (titulo, extracto)
+
     for raiz, archivo in archivos_md:
         titulo_archivo = os.path.splitext(archivo)[0]
         ruta_archivo = os.path.join(raiz, archivo)
@@ -118,24 +145,35 @@ def buscar_nota(palabra_clave: str) -> str:
             coincidencia_titulo = clave in titulo_archivo.lower()
             coincidencia_contenido = clave in contenido.lower()
 
-            if coincidencia_titulo or coincidencia_contenido:
-                # Extraer un fragmento relevante del contenido
-                lineas = contenido.splitlines()
-                extracto = []
-                for linea in lineas:
-                    if clave in linea.lower() and linea.strip():
-                        extracto.append(f"  → {linea.strip()}")
-                    if len(extracto) >= 3:
-                        break
+            if not (coincidencia_titulo or coincidencia_contenido):
+                continue
 
-                resumen = f"📄 **{titulo_archivo}**"
-                if extracto:
-                    resumen += "\n" + "\n".join(extracto)
-                resultados.append(resumen)
+            # Extraer fragmento relevante (máx. ~200 caracteres)
+            extracto_partes = []
+            for linea in contenido.splitlines():
+                if clave in linea.lower() and linea.strip():
+                    parte = linea.strip()
+                    if len(parte) > 200:
+                        parte = parte[:197] + "..."
+                    extracto_partes.append(f"  → {parte}")
+                if len(extracto_partes) >= 3:
+                    break
+
+            resumen = f"📄 **{titulo_archivo}**"
+            if extracto_partes:
+                resumen += "\n" + "\n".join(extracto_partes)
+
+            if coincidencia_titulo:
+                hits_titulo.append(resumen)
+            else:
+                hits_contenido.append(resumen)
 
         except Exception as e:
             logging.error("Error al leer la nota '%s': %s", archivo, e)
             continue
+
+    # Combinar priorizando título, limitar a 5
+    resultados = (hits_titulo + hits_contenido)[:5]
 
     if resultados:
         encabezado = f"Se encontraron {len(resultados)} nota(s) con '{palabra_clave}':\n\n"

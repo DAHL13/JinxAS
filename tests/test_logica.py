@@ -108,10 +108,11 @@ def test_colapso_espacios_multiples():
     ["CON", "con", "PRN", "prn", "AUX", "NUL", "COM1", "com1", "LPT1", "lpt9"],
 )
 def test_nombres_reservados_windows(nombre_reservado):
-    """Los nombres reservados en Windows deben ser sufijados para evitar errores de sistema operativo."""
+    """Los nombres reservados en Windows deben protegerse con prefijo 'nota ' para evitar errores de sistema operativo."""
     archivo = _normalizar_nombre_archivo(nombre_reservado)
     assert archivo.lower() != f"{nombre_reservado.lower()}.md"
-    assert archivo.endswith("_.md")
+    assert archivo.startswith("nota ")
+    assert archivo.endswith(".md")
 
 
 def test_caracteres_prohibidos_windows():
@@ -130,9 +131,9 @@ def test_extension_md_existente():
 
 
 def test_titulo_solo_caracteres_invalidos():
-    """Si el título queda vacío tras limpiar caracteres inválidos, debe usar 'Sin titulo'."""
+    """Si el título queda vacío tras limpiar caracteres inválidos, debe usar 'nota sin titulo.md'."""
     resultado = _normalizar_nombre_archivo("***???///")
-    assert resultado == "Sin titulo.md"
+    assert resultado == "nota sin titulo.md"
 
 
 def test_longitud_maxima_titulo():

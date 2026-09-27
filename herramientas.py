@@ -4,57 +4,51 @@ import shutil
 import subprocess
 import sys
 import time
-from urllib.parse import quote
+from datetime import datetime
 import psutil
 import requests
 import config
 from config import MAPA_APLICACIONES
+from comandos import normalizar
 from memoria_rag import buscar_en_notas
+from registro import herramienta
 
 _cache_clima: tuple[float, str] = (0.0, "")
 
+DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+MESES = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+    "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+]
+
+
+@herramienta("Obtiene un resumen del estado actual del sistema: CPU, RAM y disco.")
 def obtener_estado_sistema() -> str:
     """
-    Obtiene y formatea un resumen del estado actual del sistema:
-    - Porcentaje de uso de CPU.
-    - Porcentaje y cantidad en GB de memoria RAM (usada/total).
-    - Porcentaje y espacio en el disco principal C: (GB usados/totales).
+    Obtiene y formatea un resumen del estado actual del sistema en una sola línea corta:
+    CPU, RAM (usada de total en GB) y disco principal.
     """
     try:
-        # Uso de CPU (intervalo breve para medición representativa)
-        cpu_uso = psutil.cpu_percent(interval=0.5)
+        cpu = psutil.cpu_percent(interval=0.5)
+        ram = psutil.virtual_memory()
+        usada_gb = ram.used / (1024 ** 3)
+        total_gb = ram.total / (1024 ** 3)
 
-        # Uso de memoria RAM
-        memoria = psutil.virtual_memory()
-        ram_uso_pct = memoria.percent
-        ram_usada_gb = memoria.used / (1024 ** 3)
-        ram_total_gb = memoria.total / (1024 ** 3)
+        unidad = os.environ.get("SystemDrive", "C:") + "\\"
+        disco = psutil.disk_usage(unidad)
 
-        # Uso del disco principal C:
-        ruta_disco = "C:\\" if sys.platform == "win32" else "/"
-        disco = psutil.disk_usage(ruta_disco)
-        disco_uso_pct = disco.percent
-        disco_usado_gb = disco.used / (1024 ** 3)
-        disco_total_gb = disco.total / (1024 ** 3)
-
-        resumen = (
-            f"Estado del sistema:\n"
-            f"- CPU: {cpu_uso:.1f}% de uso.\n"
-            f"- Memoria RAM: {ram_uso_pct:.1f}% en uso ({ram_usada_gb:.2f} GB de {ram_total_gb:.2f} GB).\n"
-            f"- Disco principal (C:): {disco_uso_pct:.1f}% en uso ({disco_usado_gb:.2f} GB de {disco_total_gb:.2f} GB usados/totales)."
-        )
-        return resumen
-
+        return f"CPU {cpu}%, RAM {ram.percent}% ({usada_gb:.1f} de {total_gb:.1f} GB usados), disco {disco.percent}%."
     except Exception as e:
         logging.error("Error al obtener el estado del sistema: %s", e)
         return f"Error al obtener el estado del sistema: {e}"
 
+
+@herramienta("Obtiene la temperatura de los sensores de la CPU y sistema.")
 def obtener_temperatura() -> str:
     """
     Obtiene la temperatura de los sensores de la CPU y zona térmica del sistema.
     Intenta leer usando psutil o comandos WMI/PowerShell en Windows.
-    Si no hay sensores accesibles, retorna un mensaje amable indicando el uso de CPU y que
-    la lectura directa de temperatura requiere permisos elevados.
+    Si no hay sensores accesibles, retorna un mensaje honesto indicando el uso de CPU.
     """
     # 1. Intentar con psutil (si la plataforma o drivers lo soportan)
     if hasattr(psutil, "sensors_temperatures"):
@@ -81,7 +75,7 @@ def obtener_temperatura() -> str:
                 ["powershell", "-NoProfile", "-Command", ps_cmd],
                 capture_output=True,
                 text=True,
-                timeout=3
+                timeout=3,
             )
             if result.returncode == 0 and result.stdout.strip():
                 temp_c = result.stdout.strip().splitlines()[0]
@@ -90,62 +84,67 @@ def obtener_temperatura() -> str:
         except Exception as e:
             logging.error("No se pudo leer temperatura por WMI/PowerShell: %s", e)
 
-    # 3. Fallback informativo y amable.
-    # Se usa interval=0.2 para obtener una medición real e independiente sin importar el orden de llamada.
+    # 3. Fallback honesto sin afirmaciones falsas
     try:
-        cpu_uso = psutil.cpu_percent(interval=0.2)
+        uso_cpu = psutil.cpu_percent(interval=0.2)
     except Exception as e:
         logging.error("Error al medir uso de CPU: %s", e)
-        cpu_uso = 0.0
+        uso_cpu = 0.0
 
-    return (
-        f"No se pudo acceder a los sensores de temperatura directos porque Windows requiere permisos de administrador o soporte específico de hardware. "
-        f"Sin embargo, el procesador está al {cpu_uso:.1f}% de uso, operando con normalidad."
-    )
+    return f"No tengo acceso a un sensor de temperatura en este equipo. La CPU está al {uso_cpu}% de uso."
 
-def abrir_aplicacion(app_name: str = "", nombre_app: str = "") -> str:
+
+@herramienta(
+    f"Abre una aplicación. Aplicaciones permitidas: {', '.join(MAPA_APLICACIONES.keys())}",
+    parametros={
+        "nombre_app": {
+            "type": "string",
+            "description": "Nombre de la aplicación a abrir, en minúsculas si es posible.",
+        }
+    },
+)
+def abrir_aplicacion(nombre_app: str = "", app_name: str = "") -> str:
     """
     Abre una aplicación en Windows solo si está en la lista permitida (allowlist).
-    Verifica si el ejecutable está en el PATH con shutil.which. Si existe,
-    lo abre con subprocess.Popen([ruta]). Si no (es una app registrada de Windows como 'calc' o 'spotify'),
-    usa os.startfile(ejecutable).
+    Valida contra config.MAPA_APLICACIONES. Si es URI, usa os.startfile.
+    Si es ejecutable, verifica con shutil.which y ejecuta con subprocess.Popen sin shell.
     """
-    nombre = (app_name or nombre_app or "").strip()
-    if not nombre:
-        return "No se especificó ninguna aplicación para abrir."
-
-    app_limpia = nombre.lower()
-
-    if app_limpia not in MAPA_APLICACIONES:
-        return f"La aplicación '{nombre}' no está permitida."
-
-    ejecutable = MAPA_APLICACIONES[app_limpia]
-
+    app = nombre_app or app_name
+    destino = config.MAPA_APLICACIONES.get(normalizar(app or ""))
+    if not destino:
+        return f"La aplicación '{app}' no está permitida."
+    tipo, _, objetivo = destino.partition(":")
     try:
-        ruta = shutil.which(ejecutable)
-        if ruta:
-            subprocess.Popen([ruta])
+        if tipo == "uri":
+            os.startfile(objetivo)
         else:
-            os.startfile(ejecutable)
+            ruta = shutil.which(objetivo)
+            if not ruta:
+                return f"No encontré {app} instalada."
+            subprocess.Popen(
+                [ruta],
+                shell=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        return f"Abriendo {app}."
+    except OSError as e:
+        logging.error("No pude abrir %s: %s", app, e)
+        return f"No pude abrir {app}."
 
-        logging.info(f"App lanzada de forma segura: {nombre}")
-        return f"Abriendo {nombre} correctamente."
-    except Exception as e:
-        logging.error("Error al intentar ejecutar '%s': %s", nombre, e)
-        return f"Error al intentar ejecutar '{nombre}': {e}"
 
+@herramienta(f"Consulta estrictamente el clima exterior y la temperatura ambiente en {config.CIUDAD}.")
 def obtener_clima() -> str:
     """
     Obtiene el clima actual y la temperatura consultando la API de wttr.in
-    utilizando la ciudad por defecto configurada en config.py.
+    utilizando config.URL_CLIMA con caché en memoria de 10 minutos (600s).
     """
     global _cache_clima
     ts, texto = _cache_clima
     if texto and time.time() - ts < 600:
         return texto
     try:
-        url = f"https://wttr.in/{quote(config.CIUDAD_POR_DEFECTO)}?format=%C+%t"
-        respuesta = requests.get(url, timeout=5)
+        url = config.URL_CLIMA
+        respuesta = requests.get(url, headers={"User-Agent": "JinxAS/1.0"}, timeout=5)
         if respuesta.status_code == 200:
             resultado = respuesta.text.strip()
             texto_lower = resultado.lower()
@@ -159,6 +158,24 @@ def obtener_clima() -> str:
         return "Error: No se pudo obtener el clima en este momento."
 
 
+@herramienta("Obtiene la fecha y hora actuales en español.")
+def obtener_fecha_hora() -> str:
+    """
+    Obtiene la fecha y hora actual formateada en español.
+    """
+    a = datetime.now()
+    return f"Es {DIAS[a.weekday()]} {a.day} de {MESES[a.month - 1]} de {a.year}, {a:%H:%M}."
+
+
+@herramienta(
+    "Búsqueda semántica (RAG) en los apuntes del usuario en Obsidian. Úsala SIEMPRE que el usuario haga preguntas abiertas sobre sus conocimientos, proyectos, clases o conceptos documentados.",
+    parametros={
+        "consulta": {
+            "type": "string",
+            "description": "Término, pregunta o concepto a buscar en la bóveda.",
+        }
+    },
+)
 def consultar_boveda(consulta: str) -> str:
     """
     Busca información, conceptos o código en los apuntes personales del usuario
@@ -170,12 +187,14 @@ def consultar_boveda(consulta: str) -> str:
         logging.error("[RAG] Error al consultar la bóveda: %s", e)
         return f"Error al consultar la bóveda de Obsidian: {e}"
 
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
     logging.info("Módulo de herramientas - pruebas")
-    logging.info("Estado del sistema:\n%s", obtener_estado_sistema())
-    logging.info("Temperatura del sistema:\n%s", obtener_temperatura())
-    logging.info("Clima actual:\n%s", obtener_clima())
+    logging.info("Estado del sistema: %s", obtener_estado_sistema())
+    logging.info("Temperatura del sistema: %s", obtener_temperatura())
+    logging.info("Fecha y hora: %s", obtener_fecha_hora())
+    logging.info("Clima actual: %s", obtener_clima())
     logging.info("Prueba: abrir bloc de notas")
     resultado_app = abrir_aplicacion("bloc de notas")
     logging.info(resultado_app)

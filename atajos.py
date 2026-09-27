@@ -6,6 +6,7 @@ REGLAS = [
     (re.compile(r"^abre (?:el |la |los |las )?(?P<app>.+)$"), "abrir_aplicacion", lambda m: {"nombre_app": m.group("app")}),
     (re.compile(r"^(como esta la ram|estado del sistema)$"), "obtener_estado_sistema", lambda m: {}),
     (re.compile(r"^(que temperatura tiene|como esta la temperatura)$"), "obtener_temperatura", lambda m: {}),
+    (re.compile(r"^(que hora es|que dia es|fecha y hora|que fecha es)$"), "obtener_fecha_hora", lambda m: {}),
 ]
 
 

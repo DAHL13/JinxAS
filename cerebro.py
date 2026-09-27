@@ -3,115 +3,16 @@ import sys
 import ollama
 import config
 from config import MODELO_LLM, SYSTEM_PROMPT
-from herramientas import MAPA_APLICACIONES
+import herramientas  # noqa: F401 – registra herramientas en REGISTRO al importar
+import memoria       # noqa: F401 – registra guardar_nota y buscar_nota en REGISTRO al importar
+from registro import REGISTRO
 
-ESQUEMAS_HERRAMIENTAS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "obtener_estado_sistema",
-            "description": "Obtiene un resumen del estado actual del sistema: CPU, RAM y disco.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "obtener_temperatura",
-            "description": "Obtiene la temperatura de los sensores de la CPU y sistema.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "abrir_aplicacion",
-            "description": f"Abre una aplicación. Aplicaciones permitidas: {', '.join(MAPA_APLICACIONES.keys())}",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "nombre_app": {
-                        "type": "string",
-                        "description": "Nombre de la aplicación a abrir, en minúsculas si es posible.",
-                    }
-                },
-                "required": ["nombre_app"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "guardar_nota",
-            "description": "Guarda o actualiza una nota Markdown en la bóveda de Obsidian.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "titulo": {
-                        "type": "string",
-                        "description": "Título de la nota.",
-                    },
-                    "contenido": {
-                        "type": "string",
-                        "description": "Texto a guardar en la nota.",
-                    },
-                },
-                "required": ["titulo", "contenido"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "buscar_nota",
-            "description": "Búsqueda literal por palabra clave en títulos y contenido de las notas. Para preguntas conceptuales usa consultar_boveda.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "palabra_clave": {
-                        "type": "string",
-                        "description": "Palabra o tema a buscar en títulos y contenidos.",
-                    }
-                },
-                "required": ["palabra_clave"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "obtener_clima",
-            "description": f"Consulta estrictamente el clima exterior y la temperatura ambiente en {config.CIUDAD_POR_DEFECTO}.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "consultar_boveda",
-            "description": "Búsqueda semántica (RAG) en los apuntes del usuario en Obsidian. Úsala SIEMPRE que el usuario haga preguntas abiertas sobre sus conocimientos, proyectos, clases o conceptos documentados.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "consulta": {
-                        "type": "string",
-                        "description": "Término, pregunta o concepto a buscar en la bóveda.",
-                    }
-                },
-                "required": ["consulta"],
-            },
-        },
-    },
-]
+# ESQUEMAS_HERRAMIENTAS se construye desde REGISTRO para mantener
+# herramientas.py y memoria.py como única fuente de verdad (F4-06).
+ESQUEMAS_HERRAMIENTAS = [entrada["schema"] for entrada in REGISTRO.values()]
+
+# Alias para que cerebro.py pueda seguir importando MAPA_APLICACIONES
+MAPA_APLICACIONES = herramientas.MAPA_APLICACIONES
 
 def _mensaje_a_dict(mensaje) -> dict:
     if isinstance(mensaje, dict):
