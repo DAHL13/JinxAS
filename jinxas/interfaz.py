@@ -131,9 +131,9 @@ class ControladorPanel:
         self._eval(f"if(window.jinxUI && window.jinxUI.setConfig) {{ window.jinxUI.setConfig({json.dumps(datos)}); }}")
 
     def crear_ventana(self, ruta_html: str | None = None) -> object:
-        """Crea la ventana de pywebview con dimensiones estandarizadas y API (F6-02, F6-04, F6-06)."""
         import webview
-        base = os.path.dirname(os.path.abspath(__file__))
+        base = getattr(config, "_BASE_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
         if ruta_html is None:
             ruta_html = os.path.join(base, "ui", "panel.html")
             if not os.path.exists(ruta_html):

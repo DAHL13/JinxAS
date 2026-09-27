@@ -1,29 +1,33 @@
-name: CI - JinxAS
+name: ci
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
-    name: Tests de Lógica Pura
-    runs-on: ubuntu-latest
-
+    runs-on: windows-latest
     steps:
-      - name: Checkout del código
+      - name: Checkout del repositorio
         uses: actions/checkout@v4
 
-      - name: Configurar Python
+      - name: Configurar Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
+          cache: "pip"
 
-      - name: Instalar dependencias de prueba
+      - name: Instalar dependencias de desarrollo
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest numpy tqdm requests psutil
+          pip install -r requirements-dev.txt
 
-      - name: Ejecutar tests unitarios
-        run: python -m pytest tests/ -v
+      - name: Validación de estilo y calidad con Ruff
+        run: |
+          ruff check .
+
+      - name: Ejecutar suite de pruebas unitarias
+        run: |
+          pytest -q -m "not integration"

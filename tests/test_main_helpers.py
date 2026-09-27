@@ -1,4 +1,4 @@
-from main import _extraer_llamada
+from jinxas.__main__ import _extraer_llamada
 
 
 def test_extraer_llamada_dict():

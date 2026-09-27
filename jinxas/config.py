@@ -12,7 +12,7 @@ def configurar_utf8() -> None:
 
 configurar_consola = configurar_utf8
 
-_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 MODELO_LLM = "qwen2.5:3b"
 MODELO_EMBEDDINGS = "paraphrase-multilingual-MiniLM-L12-v2"

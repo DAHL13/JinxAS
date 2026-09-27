@@ -17,7 +17,7 @@ for _m in (
 ):
     sys.modules.setdefault(_m, MagicMock())
 
-from main import envolver_resultado_tool, confirmar_accion
+from jinxas.__main__ import envolver_resultado_tool, confirmar_accion
 
 
 # =============================================================================

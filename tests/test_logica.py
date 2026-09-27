@@ -41,7 +41,7 @@ for mod in MODULOS_PESADOS:
 # Importación segura de módulos bajo prueba
 import config
 from comandos import COMANDOS_SALIDA, COMANDOS_REINICIO
-from main import normalizar, _extraer_llamada
+from jinxas.__main__ import normalizar, _extraer_llamada
 from memoria import _normalizar_nombre_archivo
 
 
