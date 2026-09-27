@@ -48,11 +48,22 @@ def procesar_pensamiento(mensajes: list, modelo: str = MODELO_LLM, usar_tools: b
             options=config.LLM_OPCIONES,
             keep_alive=config.LLM_KEEP_ALIVE,
         )
-        eval_count = response.get("eval_count", 0)
-        eval_duration = response.get("eval_duration", 1) or 1
-        tps = eval_count / (eval_duration / 1e9)
-        logging.info(f"Ollama TPS: {tps:.2f} | Contexto usado: {response.get('prompt_eval_count', 0)} tokens")
-        return _mensaje_a_dict(response["message"])
+        if isinstance(response, dict):
+            eval_count = response.get("eval_count", 0)
+            eval_duration = response.get("eval_duration", 0)
+            prompt_eval = response.get("prompt_eval_count", 0)
+            msg = response.get("message", {})
+        else:
+            eval_count = getattr(response, "eval_count", 0) or 0
+            eval_duration = getattr(response, "eval_duration", 0) or 0
+            prompt_eval = getattr(response, "prompt_eval_count", 0) or 0
+            msg = getattr(response, "message", {})
+
+        tok_sec = round(eval_count / (eval_duration / 1e9), 1) if eval_duration > 0 else 0.0
+        logging.info("Ollama TPS: %.2f | Contexto usado: %s tokens", tok_sec, prompt_eval)
+        resultado = _mensaje_a_dict(msg)
+        resultado["tok_sec"] = tok_sec
+        return resultado
     except Exception as e:
         logging.error("Ollama fall\u00f3: %s", e)
         return {
@@ -88,6 +99,21 @@ def procesar_pensamiento_stream(mensajes: list, modelo: str = MODELO_LLM):
             keep_alive=config.LLM_KEEP_ALIVE,
             stream=True,
         ):
+            if isinstance(chunk, dict):
+                ec = chunk.get("eval_count", 0)
+                ed = chunk.get("eval_duration", 0)
+            else:
+                ec = getattr(chunk, "eval_count", 0) or 0
+                ed = getattr(chunk, "eval_duration", 0) or 0
+            if ed and ed > 0:
+                tps = round(ec / (ed / 1e9), 1)
+                if isinstance(chunk, dict):
+                    chunk["tok_sec"] = tps
+                else:
+                    try:
+                        setattr(chunk, "tok_sec", tps)
+                    except Exception:
+                        pass
             yield chunk
     except Exception as e:
         logging.error("Ollama falló en stream: %s", e)

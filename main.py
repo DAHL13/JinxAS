@@ -23,7 +23,7 @@ from herramientas import (
 )
 from memoria import guardar_nota, buscar_nota
 from memoria_rag import construir_indice, obtener_cantidad_fragmentos
-from interfaz import ControladorPanel, InterfazAPI, WebViewLogHandler
+from interfaz import ControladorPanel, InterfazAPI, WebViewLogHandler, ApiPanel
 from metricas import medir, CronometroTurno
 from comandos import es_comando, COMANDOS_SALIDA, COMANDOS_REINICIO
 from atajos import resolver_atajo
@@ -50,9 +50,11 @@ _handler_archivo.setFormatter(_fmt)
 # F5-04: el nivel se controla con JINX_LOG (INFO por defecto, DEBUG para contenido detallado)
 logging.basicConfig(level=config.NIVEL_LOG, handlers=[_handler_consola, _handler_archivo])
 
-# Instancia global del controlador de UI.
+# Instancia global del controlador de UI con eventos de control (F6-02, F6-04).
 # panel.ventana se asigna desde __main__ después de create_window().
-panel = ControladorPanel()
+evento_reinicio = threading.Event()
+evento_regenerar = threading.Event()
+panel = ControladorPanel(evento_reinicio=evento_reinicio, evento_regenerar=evento_regenerar)
 detener = threading.Event()
 
 from registro import REGISTRO
@@ -249,6 +251,12 @@ def ejecutar_turno_streaming(
             for chunk in stream:
                 if chunk.get("_error"):
                     break
+                if "tok_sec" in chunk:
+                    tiempos["tok_sec"] = chunk["tok_sec"]
+                elif chunk.get("eval_duration", 0) > 0:
+                    ec = chunk.get("eval_count", 0)
+                    ed = chunk.get("eval_duration", 0)
+                    tiempos["tok_sec"] = round(ec / (ed / 1e9), 1)
                 msg = chunk.get("message") or {}
                 content = msg.get("content") or ""
                 tc = msg.get("tool_calls")
@@ -329,12 +337,22 @@ def ejecutar_turno(contexto: list) -> str:
     texto_final = (respuesta.get("content") or "").strip() or "Listo."
     return texto_final
 
-def bucle_voz_secundario(detener: threading.Event = None, panel=None, api_js=None):
+def bucle_voz_secundario(
+    detener: threading.Event = None,
+    panel=None,
+    api_js=None,
+    evento_reinicio: threading.Event = None,
+    evento_regenerar: threading.Event = None,
+):
     if detener is None:
         detener = threading.Event()
     if panel is None:
         from interfaz import panel as panel_instancia
         panel = panel_instancia
+    if evento_reinicio is None and panel is not None:
+        evento_reinicio = getattr(panel, "evento_reinicio", None)
+    if evento_regenerar is None and panel is not None:
+        evento_regenerar = getattr(panel, "evento_regenerar", None)
 
     logging.info("Jinx Asistente arrancado. Di 'salir', 'apagar' o 'detener' para cerrar.")
 
@@ -360,6 +378,28 @@ def bucle_voz_secundario(detener: threading.Event = None, panel=None, api_js=Non
     fallos_micro = 0
     while not detener.is_set():
         try:
+            # Control interactivo desde la UI (Emergency Flush / Regenerar)
+            if evento_reinicio and evento_reinicio.is_set():
+                evento_reinicio.clear()
+                logging.info("[PANEL] Reinicio de memoria solicitado desde el panel UI (Emergency Flush)...")
+                contexto = [{"role": "system", "content": SYSTEM_PROMPT}]
+                if api_js is not None and hasattr(api_js, "contexto"):
+                    api_js.contexto = contexto
+                reproducir_voz("Memoria reiniciada.")
+                panel.actualizar_respuesta("Memoria reiniciada.", 0)
+                continue
+
+            if evento_regenerar and evento_regenerar.is_set():
+                evento_regenerar.clear()
+                logging.info("[PANEL] Regeneración de respuesta solicitada desde el panel UI...")
+                ultimo_asistente = next(
+                    (m["content"] for m in reversed(contexto) if m.get("role") == "assistant" and m.get("content")),
+                    None,
+                )
+                if ultimo_asistente:
+                    reproducir_voz(ultimo_asistente)
+                continue
+
             # ── Estado 1: Centinela — esperando wake word ──
             panel.actualizar_estado(1)
             if panel:
@@ -500,6 +540,8 @@ def bucle_voz_secundario(detener: threading.Event = None, panel=None, api_js=Non
                                 rondas += 1
 
                             texto_final = (respuesta.get("content") or "").strip() or "Listo."
+                            if "tok_sec" in respuesta:
+                                tiempos["tok_sec"] = respuesta["tok_sec"]
 
                     # F1-13: Mostrar texto en el panel UI antes de reproducir TTS
                     latencia_ms = int((time.time() - inicio_turno) * 1000)
@@ -533,6 +575,7 @@ def bucle_voz_secundario(detener: threading.Event = None, panel=None, api_js=Non
                 # F2-06: Añadir métricas honestas al diccionario de telemetría
                 tiempos["ttfa"] = cronometro.ttfa_ms
                 tiempos["total"] = cronometro.turno_ms
+                tiempos.setdefault("tok_sec", 0.0)
                 logging.info(
                     "[METRICA_HONESTA] TTFA: %.0f ms | Turno total: %.0f ms",
                     cronometro.ttfa_ms,
@@ -582,19 +625,26 @@ def verificar_ollama(modelo: str = config.MODELO_LLM) -> None:
 
 if __name__ == "__main__":
     verificar_ollama()
-    # Holder mutable compartido entre el hilo de voz y la API inversa.
-    # El hilo asigna holder[0] cuando inicializa el contexto;
-    # InterfazAPI.limpiar_memoria_ui() lo limpia vía api_js.contexto.
-    api_js = InterfazAPI()
+    api_js = ApiPanel(evento_reinicio, evento_regenerar)
 
-    hilo_voz = threading.Thread(target=bucle_voz_secundario, args=(detener, panel, api_js), daemon=True)
+    hilo_voz = threading.Thread(
+        target=bucle_voz_secundario,
+        args=(detener, panel, api_js, evento_reinicio, evento_regenerar),
+        daemon=True,
+    )
     hilo_voz.start()
 
+    base = os.path.dirname(os.path.abspath(__file__))
+    ruta_panel = os.path.join(base, "ui", "panel.html")
+    if not os.path.exists(ruta_panel):
+        ruta_panel = os.path.join(base, "panel_sentinel.html")
+
     ventana = webview.create_window(
-        'SENTINEL // PIPELINE GRAPH',
-        'panel_sentinel.html',
-        width=1760,
-        height=900,
+        'JinxAS',
+        ruta_panel,
+        width=1200,
+        height=800,
+        min_size=(1000, 640),
         js_api=api_js,
     )
     # Asegurarnos de que el logger raíz envíe datos a la UI
@@ -604,6 +654,8 @@ if __name__ == "__main__":
 
     # Al cerrar la ventana con la 'X', el hilo de voz también para
     ventana.events.closed += detener.set
+    # Conecta la sincronización inicial al cargar el DOM para resolver carreras (F6-06)
+    ventana.events.loaded += panel.sincronizar
     # Conecta el controlador de UI con la ventana nativa
     panel.ventana = ventana
     webview.start()
