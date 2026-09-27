@@ -1,14 +1,28 @@
+[project]
+name = "jinxas"
+version = "0.5.0"
+description = "Asistente de voz local para PC con STT, LLM y RAG autónomos."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Diego Angel Hernández Lezama" }]
+
+[project.scripts]
+jinx = "jinxas.__main__:main"
+
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+select = ["E", "F", "W"]
+ignore = ["E501", "E402", "E701", "E741", "F401", "F841", "F541"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-# eval_tools.py es un script standalone; se excluye de pytest con el prefijo "eval_"
+markers = ["integration: pruebas con Ollama en vivo"]
+addopts = "-m 'not integration'"
 python_files = ["test_*.py"]
 filterwarnings = [
     # edge_tts es un MagicMock/AsyncMock global; ignorar su corrutina sin await
