@@ -26,6 +26,7 @@ from jinxas import config
 # Sincronización de hilos (F2-07: Arranque no bloqueante)
 # ---------------------------------------------------------------------------
 _lock_rag = threading.Lock()
+_lock_construir = threading.Lock()
 _indexando: bool = False
 
 # ---------------------------------------------------------------------------
@@ -228,11 +229,15 @@ def construir_indice(panel=None) -> int:
     - Archivos nuevos/modificados → sus IDs anteriores se eliminan y se re-indexan.
     - Archivos eliminados → sus IDs se eliminan del índice.
 
-    Thread-safe: usa _lock_rag para la escritura atómica final.
+    Thread-safe: usa _lock_construir para serializar ejecuciones y _lock_rag para la escritura atómica final.
     """
     global _indice, _fragmentos, _origenes, _indexando
 
     import faiss  # import perezoso
+
+    if not _lock_construir.acquire(blocking=False):
+        logging.info("[RAG] Construcción de índice ya en progreso. Omitiendo llamada concurrente.")
+        return len(_fragmentos)
 
     _indexando = True
     try:
@@ -423,6 +428,7 @@ def construir_indice(panel=None) -> int:
 
     finally:
         _indexando = False
+        _lock_construir.release()
 
 
 # ---------------------------------------------------------------------------
@@ -494,17 +500,26 @@ def buscar_semantica(consulta: str, top_k: int = 3) -> str:
         k = min(top_k, len(fragmentos_local))
         scores, indices = indice_local.search(vector_consulta, k)
 
+        mapa_id = {frag["_id"]: frag for frag in fragmentos_local if "_id" in frag}
+
         resultados = []
         for score, idx in zip(scores[0], indices[0]):
-            if idx < 0 or idx >= len(fragmentos_local):
+            if idx < 0:
+                continue
+            # Buscar por ID de FAISS si está presente en el mapa, o por índice posicional como fallback
+            frag = mapa_id.get(idx)
+            if frag is None and 0 <= idx < len(fragmentos_local):
+                frag = fragmentos_local[idx]
+            if frag is None:
                 continue
             if float(score) < config.UMBRAL_SIMILITUD_RAG:
                 logging.debug("[RAG] Descartado score=%.4f < umbral=%.4f", score, config.UMBRAL_SIMILITUD_RAG)
                 continue
-            frag = fragmentos_local[idx]
-            logging.info("[RAG] Resultado score=%.4f archivo=%s", score, frag["archivo"])
+            frag_archivo = frag.get("archivo", "nota.md")
+            frag_texto = frag.get("texto", "")
+            logging.info("[RAG] Resultado score=%.4f archivo=%s", score, frag_archivo)
             resultados.append(
-                f"[Resultado {len(resultados)+1} — {frag['archivo']}]\n{frag['texto']}"
+                f"[Resultado {len(resultados)+1} — {frag_archivo}]\n{frag_texto}"
             )
 
         if not resultados:

@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 import time
+import threading
 from datetime import datetime
 import psutil
 import requests
@@ -14,6 +15,7 @@ from jinxas.memoria_rag import buscar_en_notas
 from jinxas.registro import REGISTRO, herramienta
 
 _cache_clima: tuple[float, str] = (0.0, "")
+_lock_clima = threading.Lock()
 
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
 MESES = [
@@ -29,7 +31,7 @@ def obtener_estado_sistema() -> str:
     CPU, RAM (usada de total en GB) y disco principal.
     """
     try:
-        cpu = psutil.cpu_percent(interval=0.5)
+        cpu = psutil.cpu_percent(interval=0.1)
         ram = psutil.virtual_memory()
         usada_gb = ram.used / (1024 ** 3)
         total_gb = ram.total / (1024 ** 3)
@@ -86,7 +88,7 @@ def obtener_temperatura() -> str:
 
     # 3. Fallback honesto sin afirmaciones falsas
     try:
-        uso_cpu = psutil.cpu_percent(interval=0.2)
+        uso_cpu = psutil.cpu_percent(interval=0.1)
     except Exception as e:
         logging.error("Error al medir uso de CPU: %s", e)
         uso_cpu = 0.0
@@ -140,9 +142,10 @@ def obtener_clima() -> str:
     utilizando config.URL_CLIMA con caché en memoria de 10 minutos (600s).
     """
     global _cache_clima
-    ts, texto = _cache_clima
-    if texto and time.time() - ts < 600:
-        return texto
+    with _lock_clima:
+        ts, texto = _cache_clima
+        if texto and time.time() - ts < 600:
+            return texto
     try:
         url = config.URL_CLIMA
         respuesta = requests.get(url, headers={"User-Agent": "JinxAS/1.0"}, timeout=5)
@@ -151,7 +154,8 @@ def obtener_clima() -> str:
             texto_lower = resultado.lower()
             if not resultado or "unknown location" in texto_lower or "404" in resultado:
                 return "Error: No se pudo obtener el clima en este momento."
-            _cache_clima = (time.time(), resultado)
+            with _lock_clima:
+                _cache_clima = (time.time(), resultado)
             return resultado
         return "Error: No se pudo obtener el clima en este momento."
     except requests.RequestException as e:

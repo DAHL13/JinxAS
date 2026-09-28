@@ -26,6 +26,7 @@ python_files = ["test_*.py"]
 filterwarnings = [
     # edge_tts es un MagicMock/AsyncMock global; ignorar su corrutina sin await
     "ignore::RuntimeWarning:unittest.mock",
+    "ignore:coroutine '.*' was never awaited:RuntimeWarning",
 ]
 
 [tool.ruff]

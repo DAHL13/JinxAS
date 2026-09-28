@@ -19,9 +19,15 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 ### Cambiado
 - Panel SENTINEL migrado a `ui/panel.html`, 100% offline sin peticiones a CDNs.
 - Despacho de aplicaciones acotado mediante `shutil.which` y `subprocess.Popen(shell=False)` sin `cmd /c start`.
+- Optimización de latencia en herramientas de sistema (`psutil.cpu_percent` de 500ms a 100ms).
+- Estandarización de importaciones con namespace `jinxas` y eliminación de duplicación de `normalizar` (DRY).
 - README reestructurado con tabla de privacidad honesta y licencia MIT formal.
 
 ### Corregido
+- Corrección de desincronización de IDs en búsqueda semántica FAISS (`buscar_semantica`), resolviendo fragmentos por `_id` de forma exacta.
+- Prevención de deadlock en el hilo productor de TTS streaming mediante bloque `try ... finally` garantizando el centinela `cola.put(None)`.
+- Eliminación de carreras en reindexación concurrente de bóveda Obsidian con `_lock_construir`.
+- Blindaje de llamadas JS hacia el panel SENTINEL con verificación condicional de métodos en `window.jinxUI`.
 - Eliminación de lecturas ficticias en el sensor de temperatura en Windows.
 - Corrección de condición de carrera en el arranque del panel pywebview.
 - Validación estricta contra Path Traversal y nombres reservados de Windows (`CON`, `PRN`, etc.).

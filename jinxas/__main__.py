@@ -26,7 +26,7 @@ from jinxas.memoria import guardar_nota, buscar_nota
 from jinxas.memoria_rag import construir_indice, obtener_cantidad_fragmentos
 from jinxas.interfaz import ControladorPanel, InterfazAPI, WebViewLogHandler, ApiPanel
 from jinxas.metricas import medir, CronometroTurno
-from jinxas.comandos import es_comando, COMANDOS_SALIDA, COMANDOS_REINICIO
+from jinxas.comandos import es_comando, normalizar, COMANDOS_SALIDA, COMANDOS_REINICIO
 from jinxas.conversacion import recortar
 from jinxas.atajos import resolver_atajo
 from jinxas.config import (
@@ -66,18 +66,6 @@ from jinxas.registro import REGISTRO
 # herramientas.py y memoria.py como única fuente de verdad (F4-06).
 FUNCIONES_DISPONIBLES: dict[str, object] = {nombre: e["fn"] for nombre, e in REGISTRO.items()}
 
-def normalizar(texto: str) -> str:
-    """
-    Pasa el texto a minúsculas, quita tildes (NFD sin categoría 'Mn'),
-    elimina signos de puntuación y colapsa espacios múltiples.
-    """
-    if not texto:
-        return ""
-    texto = texto.lower()
-    texto = "".join(c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn")
-    texto = re.sub(r"[^\w\s]", "", texto)
-    texto = re.sub(r"\s+", " ", texto).strip()
-    return texto
 
 def _extraer_llamada(tool_call) -> tuple:
     if isinstance(tool_call, dict):
@@ -142,8 +130,7 @@ def confirmar_accion(pregunta: str) -> bool:
         )
         if not respuesta:
             return False
-        from jinxas.comandos import normalizar as _normalizar
-        return _normalizar(respuesta.strip()) in _AFIRMACIONES
+        return normalizar(respuesta.strip()) in _AFIRMACIONES
     except Exception as e:
         logging.error("[CONFIRMAR] Error al escuchar confirmación: %s", e)
         return False
@@ -625,10 +612,18 @@ def bucle_voz_secundario(
 
 def verificar_ollama(modelo: str = config.MODELO_LLM) -> None:
     try:
-        instalados = {m.model for m in ollama.list().models}
+        modelos_resp = ollama.list()
+        items = modelos_resp.get("models", []) if isinstance(modelos_resp, dict) else getattr(modelos_resp, "models", [])
+        instalados = set()
+        for m in items:
+            nombre = getattr(m, "model", None) or getattr(m, "name", None)
+            if not nombre and isinstance(m, dict):
+                nombre = m.get("model") or m.get("name")
+            if nombre:
+                instalados.add(nombre)
     except Exception as e:
         raise RuntimeError("Ollama no responde. Ábrelo y reintenta.") from e
-    if not any(n.startswith(modelo) for n in instalados):
+    if not any(isinstance(n, str) and n.startswith(modelo) for n in instalados):
         raise RuntimeError(f"Falta el modelo. Ejecuta: ollama pull {modelo}")
 
 
@@ -645,8 +640,6 @@ def main() -> None:
 
     base = getattr(config, "_BASE_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     ruta_panel = os.path.join(base, "ui", "panel.html")
-    if not os.path.exists(ruta_panel):
-        ruta_panel = os.path.join(base, "panel_sentinel.html")
 
     ventana = webview.create_window(
         'JinxAS',

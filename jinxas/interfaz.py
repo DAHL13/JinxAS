@@ -165,7 +165,7 @@ class ControladorPanel:
         """Actualiza el texto de la última respuesta y la latencia en ms."""
         self._ultima_respuesta = texto
         self._ultima_latencia = int(latencia)
-        self._eval(f"window.jinxUI.setRespuesta({json.dumps(texto)}, {int(latencia)})")
+        self._eval(f"if (window.jinxUI && window.jinxUI.setRespuesta) {{ window.jinxUI.setRespuesta({json.dumps(texto)}, {int(latencia)}); }}")
 
     def actualizar_tiempos(self, tiempos: dict) -> None:
         """Actualiza las métricas de telemetría de tiempos en el panel UI."""
@@ -184,12 +184,9 @@ class ControladorPanel:
             return
         t_seguro = json.dumps(titulo) if titulo else "null"
         d_seguro = json.dumps(desc) if desc else "null"
-        try:
-            self.ventana.evaluate_js(
-                f"if(window.jinxUI) {{ window.jinxUI.actualizarSatelite({hub}, {sat}, {t_seguro}, {d_seguro}); }}"
-            )
-        except Exception as e:
-            logging.error(f"Error UI: {e}")
+        self._eval(
+            f"if(window.jinxUI && window.jinxUI.actualizarSatelite) {{ window.jinxUI.actualizarSatelite({hub}, {sat}, {t_seguro}, {d_seguro}); }}"
+        )
 
     def actualizar_detalle(self, paso: int, titulo: str, desc: str) -> None:
         """Compatibilidad con satélite principal de cada etapa (satélite 1)."""

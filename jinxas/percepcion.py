@@ -5,8 +5,8 @@ import numpy as np
 import speech_recognition as sr
 import whisper
 from thefuzz import fuzz
-import config
-from config import (
+from jinxas import config
+from jinxas.config import (
     IDIOMA_WHISPER,
     MODELO_WHISPER,
     PALABRA_ACTIVACION,
@@ -14,6 +14,7 @@ from config import (
     PROMPT_INICIAL_WHISPER,
     TIEMPO_MAXIMO_ESCUCHA,
 )
+from jinxas.comandos import normalizar
 
 
 class MicrofonoNoDisponible(RuntimeError):
@@ -57,17 +58,8 @@ def _obtener_modelo_comandos():
 ALUCINACIONES = ("amara.org", "subtitulos", "gracias por ver", "suscribete")
 
 
-def _normalizar_simple(texto: str) -> str:
-    """Versión mínima de normalizar() para evitar importación circular con comandos."""
-    import unicodedata
-    if not texto:
-        return ""
-    texto = texto.lower()
-    texto = "".join(
-        c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn"
-    )
-    texto = re.sub(r"[^\w\s]", "", texto)
-    return re.sub(r"\s+", " ", texto).strip()
+# Alias para retrocompatibilidad interna
+_normalizar_simple = normalizar
 
 
 def filtrar_transcripcion(res: dict) -> str | None:

@@ -73,11 +73,12 @@ def procesar_pensamiento(mensajes: list, modelo: str = MODELO_LLM, usar_tools: b
         }
 
 
-def procesar_pensamiento_stream(mensajes: list, modelo: str = MODELO_LLM):
+def procesar_pensamiento_stream(mensajes: list, modelo: str = MODELO_LLM, usar_tools: bool = True, **kwargs):
     """
     Versión streaming de procesar_pensamiento (F2-02).
     Llama a ollama.chat con stream=True y emite los chunks del generador
     tal como los devuelve la API, permitiendo TTS por frases en paralelo.
+    Si usar_tools es False, no se envían herramientas para forzar respuesta de texto.
 
     Cada chunk tiene la estructura:
         {"message": {"role": "assistant", "content": "...", "tool_calls": [...]}}
@@ -90,11 +91,13 @@ def procesar_pensamiento_stream(mensajes: list, modelo: str = MODELO_LLM):
     dict
         Chunk de Ollama o dict de error con clave "_error".
     """
+    if "permitir_herramientas" in kwargs:
+        usar_tools = kwargs["permitir_herramientas"]
     try:
         for chunk in ollama.chat(
             model=modelo,
             messages=mensajes,
-            tools=ESQUEMAS_HERRAMIENTAS,
+            tools=ESQUEMAS_HERRAMIENTAS if usar_tools else None,
             options=config.LLM_OPCIONES,
             keep_alive=config.LLM_KEEP_ALIVE,
             stream=True,

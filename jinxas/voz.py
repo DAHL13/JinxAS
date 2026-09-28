@@ -182,43 +182,47 @@ def reproducir_frases_streaming(
 
     # ── Hilo productor: síntesis TTS → archivos temporales ──────────────────
     def _productor():
-        for frase in frases_iter:
-            frase_limpia = limpiar_para_tts(frase)
-            if not frase_limpia:
-                continue
-            tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
-            ruta = tmp.name
-            tmp.close()
-            sintetizado = False
-            for intento in range(2):
-                try:
-                    asyncio.run(
-                        asyncio.wait_for(
-                            _generar_audio_edge(frase_limpia, voz, ruta),
-                            timeout=8,
-                        )
-                    )
-                    sintetizado = True
-                    break
-                except Exception as e:
-                    logging.warning("[STR] TTS intento %d falló: %s", intento + 1, e)
-            if sintetizado:
-                cola.put(ruta)
-            else:
-                # Fallback sonoro solo en la primera frase fallida
-                if sys.platform == "win32":
+        try:
+            for frase in frases_iter:
+                frase_limpia = limpiar_para_tts(frase)
+                if not frase_limpia:
+                    continue
+                tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+                ruta = tmp.name
+                tmp.close()
+                sintetizado = False
+                for intento in range(2):
                     try:
-                        import winsound
-                        winsound.MessageBeep()
+                        asyncio.run(
+                            asyncio.wait_for(
+                                _generar_audio_edge(frase_limpia, voz, ruta),
+                                timeout=8,
+                            )
+                        )
+                        sintetizado = True
+                        break
+                    except Exception as e:
+                        logging.warning("[STR] TTS intento %d falló: %s", intento + 1, e)
+                if sintetizado:
+                    cola.put(ruta)
+                else:
+                    # Fallback sonoro solo en la primera frase fallida
+                    if sys.platform == "win32":
+                        try:
+                            import winsound
+                            winsound.MessageBeep()
+                        except Exception:
+                            pass
+                    # Limpiar el .mp3 vacío y no encolar
+                    try:
+                        os.remove(ruta)
                     except Exception:
                         pass
-                # Limpiar el .mp3 vacío y no encolar
-                try:
-                    os.remove(ruta)
-                except Exception:
-                    pass
-        # Centinela: indica al consumidor que no hay más frases
-        cola.put(None)
+        except Exception as e:
+            logging.error("[STR] Error en hilo productor de TTS: %s", e)
+        finally:
+            # Centinela: indica al consumidor que no hay más frases
+            cola.put(None)
 
     hilo = threading.Thread(target=_productor, daemon=True, name="tts-streaming-producer")
     hilo.start()
