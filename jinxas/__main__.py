@@ -1,3 +1,4 @@
+import inspect
 import json
 import logging
 import os
@@ -9,11 +10,11 @@ import unicodedata
 from logging.handlers import RotatingFileHandler
 import webview
 import ollama
-import config
-from percepcion import escuchar_y_transcribir, esperar_palabra_activacion, MicrofonoNoDisponible
-from cerebro import procesar_pensamiento, procesar_pensamiento_stream
-from voz import reproducir_voz, extraer_frases, reproducir_frases_streaming
-from herramientas import (
+from jinxas import config
+from jinxas.percepcion import escuchar_y_transcribir, esperar_palabra_activacion, MicrofonoNoDisponible
+from jinxas.cerebro import procesar_pensamiento, procesar_pensamiento_stream
+from jinxas.voz import reproducir_voz, extraer_frases, reproducir_frases_streaming
+from jinxas.herramientas import (
     obtener_estado_sistema,
     obtener_temperatura,
     abrir_aplicacion,
@@ -21,14 +22,14 @@ from herramientas import (
     consultar_boveda,
     obtener_fecha_hora,
 )
-from memoria import guardar_nota, buscar_nota
-from memoria_rag import construir_indice, obtener_cantidad_fragmentos
-from interfaz import ControladorPanel, InterfazAPI, WebViewLogHandler, ApiPanel
-from metricas import medir, CronometroTurno
-from comandos import es_comando, COMANDOS_SALIDA, COMANDOS_REINICIO
-from conversacion import recortar
-from atajos import resolver_atajo
-from config import (
+from jinxas.memoria import guardar_nota, buscar_nota
+from jinxas.memoria_rag import construir_indice, obtener_cantidad_fragmentos
+from jinxas.interfaz import ControladorPanel, InterfazAPI, WebViewLogHandler, ApiPanel
+from jinxas.metricas import medir, CronometroTurno
+from jinxas.comandos import es_comando, COMANDOS_SALIDA, COMANDOS_REINICIO
+from jinxas.conversacion import recortar
+from jinxas.atajos import resolver_atajo
+from jinxas.config import (
     MODELO_WHISPER,
     PALABRA_ACTIVACION,
     PHRASE_TIME_LIMIT,
@@ -38,13 +39,9 @@ from config import (
     configurar_utf8,
 )
 
-_pkg_dir = os.path.dirname(os.path.abspath(__file__))
-if _pkg_dir not in sys.path:
-    sys.path.insert(0, _pkg_dir)
-
 configurar_utf8()
 
-_log_dir = os.path.join(getattr(config, "_BASE_DIR", os.path.dirname(_pkg_dir)), "logs")
+_log_dir = os.path.join(getattr(config, "_BASE_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "logs")
 os.makedirs(_log_dir, exist_ok=True)
 _fmt = logging.Formatter("%(asctime)s %(levelname)s - %(message)s")
 _handler_consola = logging.StreamHandler()
@@ -63,7 +60,7 @@ evento_regenerar = threading.Event()
 panel = ControladorPanel(evento_reinicio=evento_reinicio, evento_regenerar=evento_regenerar)
 detener = threading.Event()
 
-from registro import REGISTRO
+from jinxas.registro import REGISTRO
 
 # FUNCIONES_DISPONIBLES se construye desde REGISTRO para mantener
 # herramientas.py y memoria.py como única fuente de verdad (F4-06).
@@ -101,12 +98,19 @@ def _extraer_llamada(tool_call) -> tuple:
         argumentos = {}
     return nombre, argumentos
 
-def ejecutar_herramienta(nombre: str, argumentos: dict) -> str:
-    funcion = FUNCIONES_DISPONIBLES.get(nombre)
-    if funcion is None:
+def ejecutar_herramienta(nombre: str, argumentos: dict | None = None) -> str:
+    fn = FUNCIONES_DISPONIBLES.get(nombre)
+    if fn is None:
         return f"Herramienta no permitida: {nombre}"
     try:
-        return str(funcion(**argumentos))
+        sig = inspect.signature(fn).parameters
+        args_filtrados = {}
+        for k, v in (argumentos or {}).items():
+            if k in sig:
+                args_filtrados[k] = v
+            else:
+                logging.warning("Argumento ignorado para %s: %s", nombre, k)
+        return str(fn(**args_filtrados))
     except TypeError as e:
         return f"Argumentos inválidos para {nombre}: {e}"
     except Exception:
@@ -138,7 +142,7 @@ def confirmar_accion(pregunta: str) -> bool:
         )
         if not respuesta:
             return False
-        from comandos import normalizar as _normalizar
+        from jinxas.comandos import normalizar as _normalizar
         return _normalizar(respuesta.strip()) in _AFIRMACIONES
     except Exception as e:
         logging.error("[CONFIRMAR] Error al escuchar confirmación: %s", e)
@@ -360,8 +364,8 @@ def bucle_voz_secundario(
     if detener is None:
         detener = threading.Event()
     if panel is None:
-        from interfaz import panel as panel_instancia
-        panel = panel_instancia
+        from jinxas.interfaz import panel as panel_instancia
+        panel = panel_instancia or globals().get("panel")
     if evento_reinicio is None and panel is not None:
         evento_reinicio = getattr(panel, "evento_reinicio", None)
     if evento_regenerar is None and panel is not None:

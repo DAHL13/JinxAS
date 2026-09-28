@@ -6,7 +6,7 @@ import tempfile
 import time
 import asyncio
 import edge_tts
-from config import VOZ_TTS
+from jinxas.config import VOZ_TTS
 
 _URL = re.compile(r"https?://\S+")
 _EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF]")

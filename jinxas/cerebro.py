@@ -1,11 +1,11 @@
 import logging
 import sys
 import ollama
-import config
-from config import MODELO_LLM, SYSTEM_PROMPT
-import herramientas  # noqa: F401 – registra herramientas en REGISTRO al importar
-import memoria       # noqa: F401 – registra guardar_nota y buscar_nota en REGISTRO al importar
-from registro import REGISTRO
+from jinxas import config
+from jinxas.config import MODELO_LLM, SYSTEM_PROMPT
+from jinxas import herramientas  # noqa: F401 – registra herramientas en REGISTRO al importar
+from jinxas import memoria       # noqa: F401 – registra guardar_nota y buscar_nota en REGISTRO al importar
+from jinxas.registro import REGISTRO
 
 # ESQUEMAS_HERRAMIENTAS se construye desde REGISTRO para mantener
 # herramientas.py y memoria.py como única fuente de verdad (F4-06).

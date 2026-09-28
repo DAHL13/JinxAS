@@ -104,3 +104,36 @@ Para consolidar las celdas marcadas como pendientes tras una sesión de voz:
    - 3 consultas a la memoria o notas de Obsidian (*"¿qué notas tengo de...?"*).
 3. Inspeccionar las líneas `[METRICA_HONESTA]` y `[TURNO]` generadas en `logs/jinx.log`.
 4. Calcular la mediana (`statistics.median`) para `stt`, `llm`, `tts`, `ttfa` y `total`, y actualizar la **Tabla 2** de este documento.
+
+---
+
+## 6. Evaluación de Enrutamiento de Herramientas (F4-07)
+
+Como parte de la consolidación del subsistema de herramientas y la validación de *tool calling* nativo con modelos locales cuantizados en CPU, se ejecutó el benchmark formal [tests/eval_tools.py](file:///c:/Users/Pcrz/Documents/JinxAS/tests/eval_tools.py).
+
+### 6.1. Resultados del Benchmark de Tool Calling
+
+| Parámetro | Valor / Registro | Observaciones |
+|---|---|---|
+| **Fecha de evaluación** | 27 de septiembre de 2026 | Ejecución directa post-Fase 7 |
+| **Modelo evaluado** | Qwen 2.5 3B (`qwen2.5:3b`) | Inferencia local 100% en CPU vía Ollama |
+| **Benchmark** | `tests/eval_tools.py -v` | 17 casos de prueba representativos (atajos, tools y texto libre) |
+| **Tasa de acierto** | **16/17 (94.1%)** | Precisión en selección de tool y estructura de argumentos |
+| **Estado** | **Aprobado** ✅ | Supera el umbral de aceptación del 80% |
+
+### 6.2. Catálogo de Herramientas Evaluadas (8 activas)
+
+El evaluador validó la sincronización y resolución sobre las 8 herramientas registradas en el catálogo formal:
+
+1. `obtener_estado_sistema`: Telemetría en tiempo real de CPU, memoria RAM y uso de disco.
+2. `obtener_temperatura`: Lectura de sensores térmicos de CPU y sistema (o fallback honesto).
+3. `abrir_aplicacion`: Lanzamiento seguro con allowlist (`enum`) y validación de rutas/URIs.
+4. `obtener_clima`: Consulta meteorológica exterior con caché TTL de 10 min vía `wttr.in`.
+5. `obtener_fecha_hora`: Fecha y hora actual formateada en español.
+6. `consultar_boveda`: Búsqueda conceptual en notas con índice vectorial RAG (FAISS + MiniLM).
+7. `guardar_nota`: Guardado atómico e incremental de notas en `Boveda_Obsidian/`.
+8. `buscar_nota`: Búsqueda literal por subcadena en títulos y contenidos Markdown.
+
+> [!NOTE]
+> La suite `tests/eval_tools.py` se mantiene clasificada con el marcador `@pytest.mark.integration` (y ejecución como script standalone) para no ralentizar ni bloquear el flujo de integración continua (CI) de desarrollo en GitHub Actions, dado que requiere la presencia de un daemon de Ollama activo con el modelo descargado en memoria.
+

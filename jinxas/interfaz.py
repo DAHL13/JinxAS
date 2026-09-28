@@ -12,7 +12,7 @@ import json
 import logging
 import os
 
-import config
+from jinxas import config
 
 
 class ApiPanel:
@@ -56,7 +56,7 @@ class ApiPanel:
                         ultimo_texto = (msg.get("content") or "").strip()
                         break
             if ultimo_texto:
-                from voz import reproducir_voz
+                from jinxas.voz import reproducir_voz
                 logging.info("[ApiPanel] Repitiendo último audio desde el panel UI.")
                 threading.Thread(target=reproducir_voz, args=(ultimo_texto,), daemon=True).start()
             else:
@@ -132,12 +132,8 @@ class ControladorPanel:
 
     def crear_ventana(self, ruta_html: str | None = None) -> object:
         import webview
-        base = getattr(config, "_BASE_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
         if ruta_html is None:
-            ruta_html = os.path.join(base, "ui", "panel.html")
-            if not os.path.exists(ruta_html):
-                ruta_html = os.path.join(base, "panel_sentinel.html")
+            ruta_html = os.path.join(config._BASE_DIR, "ui", "panel.html")
         api = ApiPanel(self.evento_reinicio, self.evento_regenerar)
         self.ventana = webview.create_window(
             "JinxAS",
@@ -232,5 +228,9 @@ class WebViewLogHandler(logging.Handler):
             self.ventana.evaluate_js(f"if(window.jinxUI && window.jinxUI.addLog) {{ window.jinxUI.addLog({msg_seguro}); }}")
         except Exception:
             pass
+
+
+# Instancia o referencia por defecto para resolución de panel
+panel: ControladorPanel | None = None
 
 

@@ -20,7 +20,7 @@ import threading
 
 import numpy as np
 
-import config
+from jinxas import config
 
 # ---------------------------------------------------------------------------
 # Sincronización de hilos (F2-07: Arranque no bloqueante)

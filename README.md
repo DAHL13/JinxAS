@@ -31,7 +31,7 @@ En cumplimiento de una política de transparencia y honestidad técnica sobre lo
 |---|---|---|---|---|
 | **Voz (Edge-TTS)** | El texto de cada respuesta formulada por el asistente | Servidores Microsoft Edge TTS | En cada turno que genera respuesta de voz hablada | Dependencia de red no oficial. Si el servicio de Microsoft cambia su protocolo, la voz puede requerir ajustes o mantenimiento. |
 | **Clima (`wttr.in`)** | Nombre de la ciudad configurada y dirección IP pública | Servicio web `https://wttr.in` | Únicamente al invocar la herramienta `obtener_clima` | Consulta puntual mediante petición HTTP GET codificada en UTF-8. |
-| **Panel SENTINEL (`pywebview`)** | Peticiones HTTP estándar (IP y User-Agent) para estilos y fuentes | CDNs públicas de Tailwind CSS y Google Fonts | Al abrir la ventana gráfica del asistente | Solución provisional hasta la Fase 6, donde se empaquetarán los assets de forma 100% local. |
+| **Panel SENTINEL (`pywebview`)** | **0 bytes (No sale nada)** | Sistema local | Al abrir la ventana gráfica del asistente | 100% local y offline desde la Fase 6. Sin dependencias externas, fuentes locales del sistema y estilos CSS embebidos sin llamadas a CDNs. |
 | **Primer Arranque (Modelos)** | Peticiones HTTPS para descarga de artefactos binarios | OpenAI (Whisper), Hugging Face (MiniLM) y Ollama (Qwen) | Únicamente en la instalación inicial | Descarga de pesos para ejecución posterior sin conexión. |
 | **Micrófono y Audio** | **0 bytes (No sale nada)** | Hardware local | Continuo durante la escucha | El flujo de audio se procesa en memoria RAM local. |
 | **Whisper (STT)** | **0 bytes (No sale nada)** | CPU / GPU local | Al hablar tras activar a Jinx | Inferencia del modelo de transcripción 100% en la máquina. |

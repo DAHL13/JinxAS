@@ -3,9 +3,10 @@ import os
 import re
 import sys
 from datetime import datetime
-from config import RUTA_VAULT, TITULO_NOTA_MAX
-from memoria_rag import agregar_nota_al_indice
-from registro import herramienta
+from jinxas import config
+from jinxas.config import RUTA_VAULT, TITULO_NOTA_MAX
+from jinxas.memoria_rag import agregar_nota_al_indice
+from jinxas.registro import REGISTRO, herramienta
 
 # Nombres reservados de Windows (case-insensitive)
 _RESERVADOS = {

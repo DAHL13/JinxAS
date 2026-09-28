@@ -18,13 +18,15 @@ import sys
 import os
 import json
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _BASE_DIR not in sys.path:
+    sys.path.insert(0, _BASE_DIR)
 
-import config
+from jinxas import config
+from jinxas.registro import REGISTRO
+import jinxas.herramientas  # Registra las 6 tools de sistema
+import jinxas.memoria       # Registra las 2 tools de notas
 import ollama
-from registro import REGISTRO
 
 CASOS = [
     ("cuanto esta la RAM?",                   "obtener_estado_sistema", None),
@@ -52,7 +54,7 @@ def _agregar_clima_ciudad():
     )
 
 def _esquemas():
-    return [e["schema"] for e in REGISTRO.values()]
+    return [e["schema"] for e in list(REGISTRO.values())]
 
 def _evaluar(frase, esperada, fn_check, modelo, verbose):
     msgs = [
@@ -106,13 +108,12 @@ def main():
     parser.add_argument("--modelo", default=config.MODELO_LLM)
     parser.add_argument("-v", "--verbose", action="store_true")
     args_cli = parser.parse_args()
-    import herramientas  # noqa
-    import memoria       # noqa
     _agregar_clima_ciudad()
     sep = "=" * 55
     print("\n" + sep)
     print("  F4-07 Evaluacion | Modelo: " + args_cli.modelo + " | Casos: " + str(len(CASOS)))
     print(sep + "\n")
+    print(f"Herramientas cargadas en REGISTRO: {len(REGISTRO)} -> {list(REGISTRO.keys())}")
     aciertos = 0
     total = len(CASOS)
     for i, (frase, esp, fn) in enumerate(CASOS, 1):

@@ -1,7 +1,7 @@
 import re
 
-import config
-from comandos import normalizar
+from jinxas import config
+from jinxas.comandos import normalizar
 
 REGLAS = [
     (re.compile(r"^(como esta la ram|estado del sistema)$"), "obtener_estado_sistema", lambda m: {}),

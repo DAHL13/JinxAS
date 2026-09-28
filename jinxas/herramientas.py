@@ -7,11 +7,11 @@ import time
 from datetime import datetime
 import psutil
 import requests
-import config
-from config import MAPA_APLICACIONES
-from comandos import normalizar
-from memoria_rag import buscar_en_notas
-from registro import herramienta
+from jinxas import config
+from jinxas.config import MAPA_APLICACIONES
+from jinxas.comandos import normalizar
+from jinxas.memoria_rag import buscar_en_notas
+from jinxas.registro import REGISTRO, herramienta
 
 _cache_clima: tuple[float, str] = (0.0, "")
 
@@ -99,7 +99,8 @@ def obtener_temperatura() -> str:
     parametros={
         "nombre_app": {
             "type": "string",
-            "description": "Nombre de la aplicación a abrir, en minúsculas si es posible.",
+            "enum": sorted(config.MAPA_APLICACIONES.keys()),
+            "description": "Nombre de la aplicación a abrir.",
         }
     },
 )
