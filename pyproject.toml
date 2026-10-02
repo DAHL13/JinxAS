@@ -17,6 +17,9 @@ jinx = "jinxas.__main__:main"
 [tool.setuptools.packages.find]
 include = ["jinxas*"]
 
+[tool.setuptools.package-data]
+jinxas = ["ui/*.html"]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]

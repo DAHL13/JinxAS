@@ -133,7 +133,7 @@ class ControladorPanel:
     def crear_ventana(self, ruta_html: str | None = None) -> object:
         import webview
         if ruta_html is None:
-            ruta_html = os.path.join(config._BASE_DIR, "ui", "panel.html")
+            ruta_html = os.path.join(os.path.dirname(__file__), "ui", "panel.html")
         api = ApiPanel(self.evento_reinicio, self.evento_regenerar)
         self.ventana = webview.create_window(
             "JinxAS",
