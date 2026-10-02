@@ -19,12 +19,11 @@ from jinxas.herramientas import (
     obtener_temperatura,
     abrir_aplicacion,
     obtener_clima,
-    consultar_boveda,
     obtener_fecha_hora,
 )
 from jinxas.memoria import guardar_nota, buscar_nota
 from jinxas.memoria_rag import construir_indice, obtener_cantidad_fragmentos
-from jinxas.interfaz import ControladorPanel, InterfazAPI, WebViewLogHandler, ApiPanel
+from jinxas.interfaz import ControladorPanel, WebViewLogHandler, ApiPanel
 from jinxas.metricas import medir, CronometroTurno
 from jinxas.comandos import es_comando, normalizar, COMANDOS_SALIDA, COMANDOS_REINICIO
 from jinxas.conversacion import recortar
@@ -638,8 +637,7 @@ def main() -> None:
     )
     hilo_voz.start()
 
-    base = getattr(config, "_BASE_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    ruta_panel = os.path.join(base, "ui", "panel.html")
+    ruta_panel = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui", "panel.html")
 
     ventana = webview.create_window(
         'JinxAS',

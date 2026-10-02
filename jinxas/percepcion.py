@@ -11,7 +11,6 @@ from jinxas.config import (
     MODELO_WHISPER,
     PALABRA_ACTIVACION,
     PHRASE_TIME_LIMIT,
-    PROMPT_INICIAL_WHISPER,
     TIEMPO_MAXIMO_ESCUCHA,
 )
 from jinxas.comandos import normalizar
