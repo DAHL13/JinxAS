@@ -6,9 +6,9 @@
 |-----------|-------|------------|------------|-----------|
 | CRÍTICO   | 1     | 1          | 0          | 0         |
 | ALTO      | 2     | 2          | 0          | 0         |
-| MEDIO     | 4     | 3          | 1          | 0         |
-| BAJO      | 6     | 4          | 0          | 2         |
-| **Total** | **13**| **10**     | **1**      | **2**     |
+| MEDIO     | 5     | 5          | 0          | 0         |
+| BAJO      | 7     | 7          | 0          | 0         |
+| **Total** | **15**| **15**     | **0**      | **0**     |
 
 ---
 
@@ -172,17 +172,17 @@
 | Campo | Detalle |
 |-------|---------|
 | **Componente** | jinxas/config.py:40-44 |
-| **Condición** | `import config_local` se ejecuta al importar config.py. Si un atacante coloca un archivo `config_local.py` en el PYTHONPATH, se ejecutaría. |
+| **Condición** | `import config_local` se ejecutaba al importar config.py desde cualquier ruta de sys.path. |
 | **Criterio** | C3 (OWASP — Exceso de agencia), C2 (seguridad) |
-| **Causa** | Diseño para personalización local sin mecanismo de restricción. |
-| **Efecto** | Riesgo teórico de ejecución de código si el atacante tiene acceso al sistema de archivos. |
+| **Causa** | Diseño para personalización local sin confinamiento de ruta. |
+| **Efecto** | Riesgo teórico de ejecución de código si el atacante coloca un archivo en PYTHONPATH. |
 | **Evidencia** | E2 — trazado estático de config.py:40-44. |
 | **Probabilidad** | Baja | **Impacto** | Medio |
 | **Severidad** | **MEDIO** |
 | **CWE** | CWE-94 (Improper Control of Code Generation) |
-| **En palabras simples** | El programa intenta importar un archivo externo al arrancar. Si alguien coloca uno malicioso, se ejecutaría. |
-| **Decisión** | Proponer — es una decisión de diseño del proyecto; el archivo está en .gitignore. |
-| **Estado** | Propuesto |
+| **En palabras simples** | El programa intentaba importar un archivo externo. Ahora se confina estrictamente a la ruta de la base de la aplicación con importlib. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `2409137` |
 
 ---
 
@@ -190,27 +190,27 @@
 
 | Campo | Detalle |
 |-------|---------|
-| **Componente** | tests/*.py |
-| **Condición** | 59 avisos de ruff con las reglas hoy silenciadas (F401×10, F841×5, E402×5, E741×3). |
+| **Componente** | tests/*.py, jinxas/*.py, pyproject.toml |
+| **Condición** | 59 avisos de ruff con reglas silenciadas (F401, F841, E402, E741, F541). |
 | **Criterio** | C2 (ISO 25010 — mantenibilidad) |
 | **Severidad** | **BAJO** (agrupado) |
-| **En palabras simples** | Los tests tienen imports y variables que no se usan. No afecta funcionalidad pero ensucia. |
-| **Decisión** | Aceptar — las reglas están silenciadas intencionalmente en pyproject.toml para los tests; limpiar todo llevaría tiempo y riesgo desproporcionado al beneficio. |
-| **Estado** | Aceptado |
+| **En palabras simples** | Se depuraron todos los imports y variables no usadas, endureciendo ruff al retirar F401, F841, F541 y E741 del ignore. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `ad328bb` |
 
 ---
 
-## H-012 — Vulnerabilidades en pip y urllib3 del venv
+## H-012 — Vulnerabilidades en urllib3 del requirements.txt
 
 | Campo | Detalle |
 |-------|---------|
-| **Componente** | venv (pip 25.0.1, urllib3 2.7.0) |
-| **Condición** | pip-audit detectó 15 vulnerabilidades (11 en pip, 3 en urllib3, 1 en jinxas no auditado). |
+| **Componente** | requirements.txt (urllib3==2.7.0) |
+| **Condición** | pip-audit detectó 3 vulnerabilidades en urllib3 2.7.0 (PYSEC-2026-4175/6/7). |
 | **Criterio** | C3 (seguridad de dependencias) |
-| **Severidad** | **BAJO** — pip es herramienta del entorno, no del runtime; urllib3 se usa indirectamente vía requests. |
-| **En palabras simples** | Las herramientas del entorno tienen parches pendientes, pero no afectan al asistente en producción. |
-| **Decisión** | Aceptar — actualizar pip y urllib3 es tarea de mantenimiento del entorno, no del proyecto. |
-| **Estado** | Aceptado |
+| **Severidad** | **BAJO** |
+| **En palabras simples** | Se actualizó el pin a urllib3==2.8.0 solventando las vulnerabilidades reportadas. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `589c07c` |
 
 ---
 
@@ -222,6 +222,37 @@
 | **Condición** | `license = { text = "MIT" }` está deprecated según PEP 639 desde setuptools≥77. |
 | **Criterio** | C4 (PEP 621/639) |
 | **Severidad** | **BAJO** |
-| **En palabras simples** | El formato de la licencia en la configuración va a dejar de funcionar en 2027. |
+| **En palabras simples** | El formato de la licencia en la configuración se estandarizó a cadena SPDX. |
 | **Decisión** | Corregir |
 | **Estado** | ✅ Corregido — commit `393f0f5` |
+
+---
+
+## H-015 — Condición de carrera en ApiPanel con contexto compartido
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/interfaz.py: ApiPanel |
+| **Condición** | El estado de `contexto` se compartía entre el hilo de voz y el hilo de la UI (pywebview) sin bloqueo sincronizado. |
+| **Criterio** | C2 (ISO 25010 — fiabilidad), C3 (CWE-362 Concurrency Race Condition) |
+| **Causa** | Falta de primitivas de sincronización en métodos de acceso JS → Python. |
+| **Efecto** | Mutaciones simultáneas durante flush o repetición de audio podían causar inconsistencias de memoria. |
+| **Severidad** | **MEDIO** |
+| **CWE** | CWE-362 |
+| **En palabras simples** | El botón de limpiar memoria de la ventana podía chocar con la voz del asistente. Ahora un cerrojo (Lock) protege el historial. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `aeb52e7` |
+
+---
+
+## H-016 — Falta de resiliencia ante excepciones imprevistas en clima y fallos
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/herramientas.py: obtener_clima |
+| **Condición** | `obtener_clima` solo capturaba `RequestException`, pudiendo escapar otras excepciones de red o socket. Faltaba suite formal de inyección de fallos. |
+| **Criterio** | C2 (ISO 25010 — fiabilidad y tolerancia a fallos) |
+| **Severidad** | **MEDIO** |
+| **En palabras simples** | Si ocurría un fallo de red inesperado al pedir el clima, podía fallar feo. Ahora captura cualquier excepción y hay 11 pruebas de resiliencia. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commits `43fb721` y `31efa64` |

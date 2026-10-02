@@ -12,11 +12,16 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 - **(H-005)** Imports muertos en `__main__.py` y `percepcion.py`.
 - **(H-006)** Parámetro `tiempo_maximo` ignorado en `escuchar_y_transcribir()`.
 - **(H-007/H-008)** Discrepancias en `BASELINE.md`: versión de Python y `num_ctx`.
-- **(H-013)** Formato deprecated de licencia en `pyproject.toml`.
+- **(H-010)** Confinamiento estricto de ruta en carga de `config_local.py` mediante importlib (CWE-94).
+- **(H-011)** Limpieza de 59 avisos en suite de pruebas y endurecimiento de Ruff retirando F401, F841, F541 y E741 de `ignore`.
+- **(H-012)** Pin de `urllib3==2.8.0` en `requirements.txt` para mitigar vulnerabilidades reportadas por pip-audit.
+- **(H-013)** Formato deprecated de licencia en `pyproject.toml` migrado a especificación PEP 639.
+- **(H-015)** Sincronización de acceso a `contexto` en `ApiPanel` mediante `threading.Lock` eliminando condición de carrera (CWE-362).
+- **(H-016)** Manejo robusto de excepciones de red en `obtener_clima`.
 
 ### Añadido
-- 17 pruebas unitarias nuevas (205 en total) cubriendo lógica crítica de herramientas, recorte de contexto, sanitización de rutas, chunking RAG y TTS.
-- Documentación de auditoría en `docs/auditoria/` (plan, papeles de trabajo, hallazgos, informe final).
+- 30 pruebas unitarias nuevas (218 en total) cubriendo lógica crítica de herramientas, recorte de contexto, sanitización de rutas, chunking RAG, TTS, concurrencia y suite formal de inyección de fallos y resiliencia (`tests/test_resiliencia.py`).
+- Documentación integral de auditoría en `docs/auditoria/` (plan, papeles de trabajo, hallazgos, informe final).
 
 ## [0.5.0] - 2026-09-26
 ### Añadido

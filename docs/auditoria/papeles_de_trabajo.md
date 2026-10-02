@@ -43,3 +43,13 @@
 - `ruff check .` → All checks passed (exit 0)
 - `python -m build --wheel` → wheel ahora incluye jinxas/ui/panel.html ✅
 - `git status` → Limpio (exit 0)
+
+### 2026-10-02 09:15 — Fase 7: Remediación Integral de Propuestas y Endurecimiento
+- H-010 (MEDIO): Corregido — Confinamiento estricto de carga de `config_local.py` en `_BASE_DIR` para neutralizar CWE-94.
+- H-012 (BAJO): Corregido — Pin de `urllib3==2.8.0` en `requirements.txt` para mitigar CVEs.
+- H-011 (BAJO): Corregido — Depuración completa de imports y variables en suite de tests; reglas F401, F841, F541, E741 retiradas de `ignore` en `pyproject.toml`.
+- H-015 (MEDIO): Corregido — Implementación de `threading.Lock` y propiedad sincronizada en `ApiPanel.contexto` para eliminar condición de carrera entre UI y voz (CWE-362).
+- H-016 (MEDIO): Corregido — Robustez en `obtener_clima` y suite completa de inyección de fallos `tests/test_resiliencia.py` (11 pruebas nuevas).
+- Documentación: `README.md` actualizado con `jinxas/ui/panel.html`.
+- `pytest -q -m "not integration"` → **218 passed** en 1.34s (exit 0).
+- `ruff check .` → **All checks passed** con configuración endurecida (exit 0).
