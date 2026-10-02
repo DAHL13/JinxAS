@@ -11,3 +11,4 @@ requests>=2.31.0
 sentence-transformers>=2.2.2
 SpeechRecognition>=3.10.0
 tqdm>=4.66.0
+thefuzz>=0.20.0
