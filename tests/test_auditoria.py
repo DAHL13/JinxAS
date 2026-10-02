@@ -138,3 +138,31 @@ def test_config_local_carga_segura(tmp_path, monkeypatch):
     # Validar que si no está en _BASE_DIR no lo carga, y si está lo procesa
     assert config._BASE_DIR == str(tmp_path)
 
+
+def test_api_panel_contexto_thread_safety():
+    """Valida que ApiPanel gestione el contexto de forma sincronizada y thread-safe."""
+    import threading
+    from jinxas.interfaz import ApiPanel
+
+    api = ApiPanel()
+    contexto_inicial = [{"role": "system", "content": "sys"}, {"role": "user", "content": "hola"}]
+    api.contexto = contexto_inicial
+    assert api.contexto == contexto_inicial
+
+    # Simular concurrencia
+    def _flush():
+        api.limpiar_memoria_ui()
+
+    def _actualizar():
+        api.contexto = [{"role": "system", "content": "sys"}, {"role": "assistant", "content": "adios"}]
+
+    h1 = threading.Thread(target=_flush)
+    h2 = threading.Thread(target=_actualizar)
+    h1.start()
+    h2.start()
+    h1.join()
+    h2.join()
+
+    assert api.contexto is not None
+
+

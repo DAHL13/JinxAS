@@ -11,9 +11,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 
 from jinxas import config
-
 
 class ApiPanel:
     """Clase puente para pywebview (JS → Python) (F6-02, F6-04)."""
@@ -21,7 +21,18 @@ class ApiPanel:
     def __init__(self, evento_reinicio=None, evento_regenerar=None):
         self.evento_reinicio = evento_reinicio
         self.evento_regenerar = evento_regenerar
-        self.contexto: list | None = None
+        self._contexto: list | None = None
+        self._lock = threading.Lock()
+
+    @property
+    def contexto(self) -> list | None:
+        with self._lock:
+            return self._contexto
+
+    @contexto.setter
+    def contexto(self, valor: list | None) -> None:
+        with self._lock:
+            self._contexto = valor
 
     def reiniciar_memoria(self) -> bool:
         if self.evento_reinicio:
@@ -37,24 +48,25 @@ class ApiPanel:
     def limpiar_memoria_ui(self) -> None:
         try:
             self.reiniciar_memoria()
-            if self.contexto is not None and len(self.contexto) > 1:
-                del self.contexto[1:]
-                logging.info("[ApiPanel] Historial borrado desde el panel UI (Emergency Flush).")
-            else:
-                logging.info("[ApiPanel] Flush solicitado: historial ya estaba vacío.")
+            with self._lock:
+                if self._contexto is not None and len(self._contexto) > 1:
+                    del self._contexto[1:]
+                    logging.info("[ApiPanel] Historial borrado desde el panel UI (Emergency Flush).")
+                else:
+                    logging.info("[ApiPanel] Flush solicitado: historial ya estaba vacío.")
         except Exception as exc:
             logging.error("[ApiPanel] Error al limpiar historial: %s", exc)
 
     def repetir_audio_ui(self) -> None:
-        import threading
         try:
             self.regenerar()
             ultimo_texto = ""
-            if self.contexto:
-                for msg in reversed(self.contexto):
-                    if msg.get("role") == "assistant":
-                        ultimo_texto = (msg.get("content") or "").strip()
-                        break
+            with self._lock:
+                if self._contexto:
+                    for msg in reversed(self._contexto):
+                        if msg.get("role") == "assistant":
+                            ultimo_texto = (msg.get("content") or "").strip()
+                            break
             if ultimo_texto:
                 from jinxas.voz import reproducir_voz
                 logging.info("[ApiPanel] Repitiendo último audio desde el panel UI.")
