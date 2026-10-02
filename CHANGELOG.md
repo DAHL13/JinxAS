@@ -3,6 +3,21 @@
 Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [Unreleased]
+### Corregido
+- **(H-001)** `ui/panel.html` no se incluía en el wheel; movido a `jinxas/ui/` con resolución de ruta por `__file__`.
+- **(H-002)** `pywebview` sin versión fijada en `requirements.txt`; `thefuzz` faltante en `requirements.in`.
+- **(H-003)** Eliminada manipulación de `sys.path` en `__init__.py` (antipatrón PEP 517).
+- **(H-004)** `hashlib.sha1()` sin `usedforsecurity=False` en caché RAG (CWE-327).
+- **(H-005)** Imports muertos en `__main__.py` y `percepcion.py`.
+- **(H-006)** Parámetro `tiempo_maximo` ignorado en `escuchar_y_transcribir()`.
+- **(H-007/H-008)** Discrepancias en `BASELINE.md`: versión de Python y `num_ctx`.
+- **(H-013)** Formato deprecated de licencia en `pyproject.toml`.
+
+### Añadido
+- 17 pruebas unitarias nuevas (205 en total) cubriendo lógica crítica de herramientas, recorte de contexto, sanitización de rutas, chunking RAG y TTS.
+- Documentación de auditoría en `docs/auditoria/` (plan, papeles de trabajo, hallazgos, informe final).
+
 ## [0.5.0] - 2026-09-26
 ### Añadido
 - Empaquetado formal como librería `jinxas/` con comando CLI `jinx`.
