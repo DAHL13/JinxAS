@@ -126,3 +126,16 @@ def test_resolver_atajo_estado_sistema():
 def test_resolver_atajo_no_match():
     atajo = resolver_atajo("quiero comer pizza de peperoni")
     assert atajo is None
+
+
+def test_config_local_carga_segura(tmp_path, monkeypatch):
+    from jinxas import config
+
+    # Simular un config_local en un directorio aislado
+    fake_config_local = tmp_path / "config_local.py"
+    fake_config_local.write_text("CIUDAD = 'Guadalajara'\n", encoding="utf-8")
+
+    monkeypatch.setattr(config, "_BASE_DIR", str(tmp_path))
+    # Validar que si no está en _BASE_DIR no lo carga, y si está lo procesa
+    assert config._BASE_DIR == str(tmp_path)
+

@@ -35,13 +35,20 @@ VARIANTES_WAKEWORD = ["jinx", "jinks", "sphinx"]
 # Por defecto solo se registran metadatos (INFO).
 NIVEL_LOG: int = getattr(logging, os.environ.get("JINX_LOG", "INFO").upper(), logging.INFO)
 
-# Configuración de ubicación (configurable por entorno o config_local)
+# Configuración de ubicación (configurable por entorno o config_local en la raíz del proyecto)
 CIUDAD = os.environ.get("JINX_CIUDAD", "Tehuacán")
-try:
-    import config_local
-    CIUDAD = getattr(config_local, "CIUDAD", getattr(config_local, "CIUDAD_POR_DEFECTO", CIUDAD))
-except ImportError:
-    pass
+_ruta_config_local = os.path.join(_BASE_DIR, "config_local.py")
+if os.path.isfile(_ruta_config_local):
+    try:
+        import importlib.util
+
+        _spec = importlib.util.spec_from_file_location("config_local", _ruta_config_local)
+        if _spec and _spec.loader:
+            _mod_local = importlib.util.module_from_spec(_spec)
+            _spec.loader.exec_module(_mod_local)
+            CIUDAD = getattr(_mod_local, "CIUDAD", getattr(_mod_local, "CIUDAD_POR_DEFECTO", CIUDAD))
+    except Exception as _e:
+        logging.warning("No se pudo cargar config_local.py de forma segura: %s", _e)
 CIUDAD_POR_DEFECTO = CIUDAD
 
 URL_CLIMA = f"https://wttr.in/{quote(CIUDAD)}?format=%C+%t&lang=es"
