@@ -158,7 +158,7 @@ def obtener_clima() -> str:
                 _cache_clima = (time.time(), resultado)
             return resultado
         return "Error: No se pudo obtener el clima en este momento."
-    except requests.RequestException as e:
+    except Exception as e:
         logging.error("Error de red al consultar el clima: %s", e)
         return "Error: No se pudo obtener el clima en este momento."
 
