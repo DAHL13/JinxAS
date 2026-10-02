@@ -183,7 +183,7 @@ def _dividir_en_chunks(texto: str, nombre_archivo: str) -> list:
 # ---------------------------------------------------------------------------
 
 def _sha1_archivo(ruta: str) -> str:
-    h = hashlib.sha1()
+    h = hashlib.sha1(usedforsecurity=False)
     with open(ruta, "rb") as f:
         for bloque in iter(lambda: f.read(65536), b""):
             h.update(bloque)
