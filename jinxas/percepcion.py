@@ -238,8 +238,8 @@ def escuchar_y_transcribir(
             try:
                 audio = r.listen(
                     fuente,
-                    timeout=config.TIEMPO_MAXIMO_ESCUCHA,
-                    phrase_time_limit=config.PHRASE_TIME_LIMIT,
+                    timeout=tiempo_maximo,
+                    phrase_time_limit=phrase_time_limit,
                 )
                 logging.info("Audio capturado. Transcribiendo...")
             except sr.WaitTimeoutError:
