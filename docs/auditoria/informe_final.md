@@ -242,6 +242,6 @@ de 10 turnos de voz y actualizar las celdas pendientes.
 
 ## Información de Cierre
 
-- **Hash final:** (pendiente de publicación)
+- **Hash final:** `de8a44d8507dd9849cfe163624badaacf52c3969`
 - **Enlace a la rama:** https://github.com/DAHL13/JinxAS/compare/main...auditoria-profunda
-- **Estado del CI:** No verificado
+- **Estado del CI:** No verificado (`gh` CLI no disponible)
