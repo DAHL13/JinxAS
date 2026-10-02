@@ -1,6 +1,5 @@
 import json
 from unittest.mock import MagicMock, patch
-import pytest
 import config
 from config import configurar_utf8
 import memoria_rag
@@ -115,7 +114,7 @@ def test_f1_14_configurar_utf8_ejecuta_sin_error():
 
 def test_f1_08_f1_11_multiples_rondas_y_tool_name():
     """F1-08 y F1-11: Soporte de rondas múltiples de herramientas y clave tool_name."""
-    from main import ejecutar_turno, ejecutar_herramienta
+    from main import ejecutar_turno
 
     # Simulamos 2 rondas de tool calls seguidas de respuesta final
     resp_ronda_1 = {

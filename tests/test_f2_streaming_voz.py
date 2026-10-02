@@ -10,12 +10,7 @@ Estrategia de mock:
 Los tests son completamente offline y terminan en < 1 s.
 """
 
-import os
-import asyncio
-from unittest.mock import MagicMock, patch, call
-import pytest
-
-import voz
+from unittest.mock import MagicMock, patch
 from voz import extraer_frases, reproducir_frases_streaming
 
 
@@ -264,7 +259,7 @@ class TestEjecutarTurnoStreaming:
         with patch("main.procesar_pensamiento_stream", return_value=iter(chunks)), \
              patch("main.reproducir_frases_streaming", side_effect=_rfs_consume) as mock_rfs, \
              patch("main.config.ATAJOS", False):
-            texto = ejecutar_turno_streaming("hola", contexto, tiempos, cronometro)
+            _ = ejecutar_turno_streaming("hola", contexto, tiempos, cronometro)
 
         # La función de TTS debe haberse llamado
         mock_rfs.assert_called_once()
@@ -280,7 +275,7 @@ class TestEjecutarTurnoStreaming:
         Verifica que ejecutar_herramienta se llama y reproducir_frases_streaming
         solo se invoca en la ronda final, no durante la herramienta.
         """
-        from main import ejecutar_turno_streaming, FUNCIONES_DISPONIBLES
+        from main import ejecutar_turno_streaming
         from metricas import CronometroTurno
         import time
 

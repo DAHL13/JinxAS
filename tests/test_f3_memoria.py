@@ -10,7 +10,6 @@ boveda real ni percepcion.py.
 """
 import importlib
 import os
-import sys
 
 import pytest
 

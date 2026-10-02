@@ -1,5 +1,4 @@
 import pytest
-from pathlib import Path
 
 from jinxas.__main__ import envolver_resultado_tool, ejecutar_herramienta
 from jinxas.conversacion import recortar

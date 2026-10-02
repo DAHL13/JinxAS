@@ -1,13 +1,11 @@
 import logging
 import re
-import sys
 import numpy as np
 import speech_recognition as sr
 import whisper
 from thefuzz import fuzz
 from jinxas import config
 from jinxas.config import (
-    IDIOMA_WHISPER,
     MODELO_WHISPER,
     PALABRA_ACTIVACION,
     PHRASE_TIME_LIMIT,

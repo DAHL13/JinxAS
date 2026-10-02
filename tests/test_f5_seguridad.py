@@ -7,7 +7,6 @@ y F5-04 (Logs sin contenido privado).
 import logging
 import sys
 from unittest.mock import MagicMock, patch
-import pytest
 
 # -- Mocks de modulos pesados -------------------------------------------------
 for _m in (
@@ -179,13 +178,13 @@ class TestSanitizacionLogs:
     def test_info_contiene_nombre_herramienta(self):
         """El nivel INFO debe registrar el nombre de la herramienta invocada."""
         logs = self._capturar_logs_info("buscar_nota", self.CONTENIDO_NOTA)
-        assert any("buscar_nota" in l for l in logs), "Nombre de herramienta ausente en INFO"
+        assert any("buscar_nota" in log for log in logs), "Nombre de herramienta ausente en INFO"
 
     def test_info_contiene_longitud(self):
         """El nivel INFO debe registrar la longitud del resultado."""
         logs = self._capturar_logs_info("buscar_nota", self.CONTENIDO_NOTA)
         longitud_str = str(len(self.CONTENIDO_NOTA))
-        assert any(longitud_str in l for l in logs), (
+        assert any(longitud_str in log for log in logs), (
             f"Longitud {longitud_str} ausente en logs INFO: {logs}"
         )
 
@@ -210,6 +209,6 @@ class TestSanitizacionLogs:
             logger.removeHandler(captura)
             logger.setLevel(nivel_original)
 
-        assert any(self.CONTENIDO_NOTA in l for l in records_debug), (
+        assert any(self.CONTENIDO_NOTA in log for log in records_debug), (
             "Contenido completo ausente en logs DEBUG"
         )

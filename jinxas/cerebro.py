@@ -1,5 +1,4 @@
 import logging
-import sys
 import ollama
 from jinxas import config
 from jinxas.config import MODELO_LLM, SYSTEM_PROMPT

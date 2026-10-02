@@ -13,10 +13,9 @@ Bóveda temporal con tmp_path + monkeypatch sobre RUTA_VAULT y config.
 import importlib
 import json
 import os
-import time
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 # ---------------------------------------------------------------------------
@@ -272,7 +271,6 @@ class TestIndexacionIncremental:
 
         # Primera indexacion
         rag.construir_indice()
-        calls_primera = env_rag["modelo"].encode_calls
 
         # Guardar manifiesto manualmente (porque write_index esta mockeado)
         # Simulamos que el manifiesto quedo escrito con los datos correctos
@@ -328,7 +326,6 @@ class TestIndexacionIncremental:
 
         # Primera indexacion
         rag.construir_indice()
-        calls_primera = env_rag["modelo"].encode_calls
 
         # Guardar manifiesto con nota_a con hash FALSO para simular cambio detectado
         cache_dir = vault / ".jinx_cache"
@@ -449,7 +446,6 @@ class TestConsistenciaGuardarNota:
         """
         vault = env_rag["vault"]
         rag = env_rag["rag"]
-        cfg = env_rag["config"]
 
         # Recargar memoria con el vault temporal
         import memoria

@@ -4,7 +4,6 @@ test_f7_conversacion.py — Pruebas unitarias para conversacion.py (F7-01).
 Valida el recorte determinista de contexto conversacional y la purga
 de llamadas a herramientas huérfanas tras el system prompt.
 """
-import pytest
 from conversacion import recortar
 
 

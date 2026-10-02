@@ -26,6 +26,7 @@ from jinxas import config
 from jinxas.registro import REGISTRO
 import jinxas.herramientas  # Registra las 6 tools de sistema
 import jinxas.memoria       # Registra las 2 tools de notas
+_ = (jinxas.herramientas, jinxas.memoria)
 import ollama
 
 CASOS = [

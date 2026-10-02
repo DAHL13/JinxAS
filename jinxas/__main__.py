@@ -2,26 +2,16 @@ import inspect
 import json
 import logging
 import os
-import re
-import sys
 import threading
 import time
-import unicodedata
 from logging.handlers import RotatingFileHandler
 import webview
 import ollama
 from jinxas import config
+from jinxas.registro import REGISTRO
 from jinxas.percepcion import escuchar_y_transcribir, esperar_palabra_activacion, MicrofonoNoDisponible
 from jinxas.cerebro import procesar_pensamiento, procesar_pensamiento_stream
 from jinxas.voz import reproducir_voz, extraer_frases, reproducir_frases_streaming
-from jinxas.herramientas import (
-    obtener_estado_sistema,
-    obtener_temperatura,
-    abrir_aplicacion,
-    obtener_clima,
-    obtener_fecha_hora,
-)
-from jinxas.memoria import guardar_nota, buscar_nota
 from jinxas.memoria_rag import construir_indice, obtener_cantidad_fragmentos
 from jinxas.interfaz import ControladorPanel, WebViewLogHandler, ApiPanel
 from jinxas.metricas import medir, CronometroTurno
@@ -34,7 +24,6 @@ from jinxas.config import (
     PHRASE_TIME_LIMIT,
     SYSTEM_PROMPT,
     TIEMPO_MAXIMO_ESCUCHA,
-    MAX_RONDAS_TOOLS,
     configurar_utf8,
 )
 
@@ -58,8 +47,6 @@ evento_reinicio = threading.Event()
 evento_regenerar = threading.Event()
 panel = ControladorPanel(evento_reinicio=evento_reinicio, evento_regenerar=evento_regenerar)
 detener = threading.Event()
-
-from jinxas.registro import REGISTRO
 
 # FUNCIONES_DISPONIBLES se construye desde REGISTRO para mantener
 # herramientas.py y memoria.py como única fuente de verdad (F4-06).

@@ -1,12 +1,10 @@
 import logging
 import os
 import re
-import sys
 from datetime import datetime
-from jinxas import config
 from jinxas.config import RUTA_VAULT, TITULO_NOTA_MAX
 from jinxas.memoria_rag import agregar_nota_al_indice
-from jinxas.registro import REGISTRO, herramienta
+from jinxas.registro import herramienta
 
 # Nombres reservados de Windows (case-insensitive)
 _RESERVADOS = {
@@ -82,7 +80,7 @@ def guardar_nota(titulo: str, contenido: str) -> str:
             with open(ruta_archivo, "w", encoding="utf-8") as f:
                 f.write(f"# {titulo}\n\n")
                 f.write(f"*Creada el {ahora}*\n\n")
-                f.write(f"---\n\n")
+                f.write("---\n\n")
                 f.write(f"{contenido}\n")
             try:
                 agregar_nota_al_indice(ruta_archivo)

@@ -12,7 +12,7 @@ from jinxas import config
 from jinxas.config import MAPA_APLICACIONES
 from jinxas.comandos import normalizar
 from jinxas.memoria_rag import buscar_en_notas
-from jinxas.registro import REGISTRO, herramienta
+from jinxas.registro import herramienta
 
 _cache_clima: tuple[float, str] = (0.0, "")
 _lock_clima = threading.Lock()
