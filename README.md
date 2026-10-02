@@ -187,6 +187,8 @@ JinxAS/
 │   ├── metricas.py            # Telemetría de turnos y CronometroTurno
 │   ├── percepcion.py          # STT: Whisper centinela y Whisper comandos
 │   ├── registro.py            # Registro único de herramientas (@herramienta)
+│   ├── ui/                    # Recursos web del panel embebidos en el paquete
+│   │   └── panel.html         # Panel SENTINEL 100% offline (sin CDNs)
 │   └── voz.py                 # TTS: Edge-TTS streaming y reproductor pygame
 ├── tests/                     # Suite de pruebas unitarias y de integración
 │   ├── conftest.py            # Mocks ligeros de hardware y modelos
@@ -202,8 +204,6 @@ JinxAS/
 │   ├── test_logica.py         # Pruebas deterministas de normalización y utilidades
 │   ├── test_main_helpers.py   # Helpers de extracción de llamadas a tools
 │   └── eval_tools.py          # Benchmark de enrutamiento Ollama
-├── ui/
-│   └── panel.html             # Panel SENTINEL 100% offline (sin CDNs)
 ├── .gitignore                 # Exclusiones de git (caché, logs, bóveda)
 ├── CHANGELOG.md               # Historial de cambios formal (Keep a Changelog)
 ├── LICENSE                    # Licencia MIT (2026)
