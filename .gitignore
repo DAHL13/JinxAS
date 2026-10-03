@@ -19,6 +19,7 @@ build/
 logs/
 Boveda_Obsidian/
 config_local.py
+config_local.json
 .env
 
 # Archivos de audio temporales

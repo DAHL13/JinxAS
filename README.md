@@ -110,6 +110,8 @@ JinxAS se puede personalizar sin modificar el código fuente mediante variables 
 | `JINX_CIUDAD` | Nombre de ciudad (ej. `Madrid`, `Puebla`) | `Tehuacán` | Ciudad utilizada para las consultas meteorológicas de `obtener_clima`. |
 | `JINX_LOG` | `INFO`, `DEBUG`, `WARNING`, `ERROR` | `INFO` | Nivel de logging. En `INFO` protege la privacidad; en `DEBUG` muestra el payload completo de tools y transcripciones. |
 
+> **Nota de Configuración Local:** También es posible definir la ciudad en un archivo opcional `config_local.json` en la raíz del proyecto (ejemplo: `{"ciudad": "Madrid"}`). La variable de entorno `JINX_CIUDAD` tiene máxima prioridad sobre este archivo.
+
 ---
 
 ## 🚀 Instalación y Puesta en Marcha

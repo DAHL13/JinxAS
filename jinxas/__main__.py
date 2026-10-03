@@ -9,7 +9,12 @@ import webview
 import ollama
 from jinxas import config
 from jinxas.registro import REGISTRO
-from jinxas.percepcion import escuchar_y_transcribir, esperar_palabra_activacion, MicrofonoNoDisponible
+from jinxas.percepcion import (
+    escuchar_y_transcribir,
+    esperar_palabra_activacion,
+    precargar_modelos,
+    MicrofonoNoDisponible,
+)
 from jinxas.cerebro import procesar_pensamiento, procesar_pensamiento_stream
 from jinxas.voz import reproducir_voz, extraer_frases, reproducir_frases_streaming
 from jinxas.memoria_rag import construir_indice, obtener_cantidad_fragmentos
@@ -208,6 +213,18 @@ def ejecutar_turno_streaming(
             contenido_texto = "".join(content_acum).strip()
             msg_asistente = {"role": "assistant", "content": contenido_texto, "tool_calls": tool_calls_acum}
             contexto.append(msg_asistente)
+
+            if rondas >= config.MAX_RONDAS_TOOLS:
+                for tc in tool_calls_acum:
+                    nombre, _ = _extraer_llamada(tc)
+                    contexto.append({
+                        "role": "tool",
+                        "tool_name": nombre,
+                        "content": "[Límite de rondas de herramientas alcanzado; acción no ejecutada]",
+                    })
+                texto_final = "Límite de rondas de herramientas alcanzado."
+                break
+
             for tc in tool_calls_acum:
                 nombre, args = _extraer_llamada(tc)
                 if panel:
@@ -270,6 +287,15 @@ def ejecutar_turno_streaming(
         if tool_calls_tardios:
             # Hubo tool_calls en medio del stream: guardar y procesar otra ronda
             contexto.append({"role": "assistant", "content": texto_final, "tool_calls": tool_calls_tardios})
+            if rondas >= config.MAX_RONDAS_TOOLS:
+                for tc in tool_calls_tardios:
+                    nombre, _ = _extraer_llamada(tc)
+                    contexto.append({
+                        "role": "tool",
+                        "tool_name": nombre,
+                        "content": "[Límite de rondas de herramientas alcanzado; acción no ejecutada]",
+                    })
+                break
             for tc in tool_calls_tardios:
                 nombre, args = _extraer_llamada(tc)
                 if panel:
@@ -327,6 +353,15 @@ def ejecutar_turno(contexto: list) -> str:
         if not respuesta.get("_error"):
             contexto.append(respuesta)
         rondas += 1
+
+    if respuesta.get("tool_calls"):
+        for tc in respuesta["tool_calls"]:
+            nombre, _ = _extraer_llamada(tc)
+            contexto.append({
+                "role": "tool",
+                "tool_name": nombre,
+                "content": "[Límite de rondas de herramientas alcanzado; acción no ejecutada]",
+            })
 
     texto_final = (respuesta.get("content") or "").strip() or "Listo."
     return texto_final
@@ -531,6 +566,15 @@ def bucle_voz_secundario(
                                     contexto.append(respuesta)
                                 rondas += 1
 
+                            if respuesta.get("tool_calls"):
+                                for tc in respuesta["tool_calls"]:
+                                    nombre, _ = _extraer_llamada(tc)
+                                    contexto.append({
+                                        "role": "tool",
+                                        "tool_name": nombre,
+                                        "content": "[Límite de rondas de herramientas alcanzado; acción no ejecutada]",
+                                    })
+
                             texto_final = (respuesta.get("content") or "").strip() or "Listo."
                             if "tok_sec" in respuesta:
                                 tiempos["tok_sec"] = respuesta["tok_sec"]
@@ -625,6 +669,8 @@ def verificar_ollama(modelo: str = config.MODELO_LLM) -> None:
 
 def main() -> None:
     verificar_ollama()
+    # Precargar modelos Whisper (centinela y comandos) en segundo plano para reducir latencia inicial
+    threading.Thread(target=precargar_modelos, daemon=True, name="precarga-whisper").start()
     api_js = ApiPanel(evento_reinicio, evento_regenerar)
 
     hilo_voz = threading.Thread(

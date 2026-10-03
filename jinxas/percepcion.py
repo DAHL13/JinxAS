@@ -17,6 +17,9 @@ from jinxas.comandos import normalizar
 class MicrofonoNoDisponible(RuntimeError):
     """Se lanza cuando el hardware de micrófono no es accesible (OSError de PyAudio)."""
 
+import threading
+
+_LOCK_MODELOS = threading.Lock()
 _MODELO_CENTINELA = None
 
 # ── Caché perezosa para STT de comandos (independiente del centinela) ──────────
@@ -43,12 +46,29 @@ def _obtener_reconocedor_comandos() -> sr.Recognizer:
 
 
 def _obtener_modelo_comandos():
-    """Carga el modelo Whisper principal para comandos, una sola vez."""
+    """Carga el modelo Whisper principal para comandos de forma segura con lock."""
     global _MODELO_WHISPER_COMANDOS
     if _MODELO_WHISPER_COMANDOS is None:
-        logging.info("Cargando modelo Whisper principal (comandos)...")
-        _MODELO_WHISPER_COMANDOS = whisper.load_model(config.MODELO_WHISPER)
+        with _LOCK_MODELOS:
+            if _MODELO_WHISPER_COMANDOS is None:
+                logging.info("Cargando modelo Whisper principal (comandos)...")
+                _MODELO_WHISPER_COMANDOS = whisper.load_model(config.MODELO_WHISPER)
     return _MODELO_WHISPER_COMANDOS
+
+
+def precargar_modelos() -> None:
+    """
+    Precarga en memoria los modelos Whisper (centinela y comandos) de forma thread-safe.
+    Evita latencias prolongadas durante el primer comando del usuario.
+    """
+    global _MODELO_CENTINELA, _MODELO_WHISPER_COMANDOS
+    with _LOCK_MODELOS:
+        if _MODELO_CENTINELA is None:
+            logging.info("Precargando modelo centinela de Whisper (%s)...", config.MODELO_WAKEWORD)
+            _MODELO_CENTINELA = whisper.load_model(config.MODELO_WAKEWORD)
+        if _MODELO_WHISPER_COMANDOS is None:
+            logging.info("Precargando modelo Whisper principal (comandos, %s)...", config.MODELO_WHISPER)
+            _MODELO_WHISPER_COMANDOS = whisper.load_model(config.MODELO_WHISPER)
 
 
 # ── Filtro de alucinaciones ────────────────────────────────────────────────────

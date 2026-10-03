@@ -1,4 +1,5 @@
 import hashlib
+import json
 import logging
 import os
 import sys
@@ -39,20 +40,19 @@ VARIANTES_WAKEWORD = ["jinx", "jinks", "sphinx", "jinxs"]
 # Por defecto solo se registran metadatos (INFO).
 NIVEL_LOG: int = getattr(logging, os.environ.get("JINX_LOG", "INFO").upper(), logging.INFO)
 
-# Configuración de ubicación (configurable por entorno o config_local en la raíz del proyecto)
-CIUDAD = os.environ.get("JINX_CIUDAD", "Tehuacán")
-_ruta_config_local = os.path.join(_BASE_DIR, "config_local.py")
-if os.path.isfile(_ruta_config_local):
-    try:
-        import importlib.util
-
-        _spec = importlib.util.spec_from_file_location("config_local", _ruta_config_local)
-        if _spec and _spec.loader:
-            _mod_local = importlib.util.module_from_spec(_spec)
-            _spec.loader.exec_module(_mod_local)
-            CIUDAD = getattr(_mod_local, "CIUDAD", getattr(_mod_local, "CIUDAD_POR_DEFECTO", CIUDAD))
-    except Exception as _e:
-        logging.warning("No se pudo cargar config_local.py de forma segura: %s", _e)
+# Configuración de ubicación (configurable por entorno JINX_CIUDAD o config_local.json en la raíz del proyecto)
+CIUDAD = os.environ.get("JINX_CIUDAD")
+if not CIUDAD:
+    _ruta_config_local = os.path.join(_BASE_DIR, "config_local.json")
+    if os.path.isfile(_ruta_config_local):
+        try:
+            with open(_ruta_config_local, "r", encoding="utf-8") as _f:
+                _data_local = json.load(_f)
+                CIUDAD = _data_local.get("ciudad") or _data_local.get("CIUDAD")
+        except Exception as _e:
+            logging.warning("No se pudo cargar config_local.json: %s", _e)
+if not CIUDAD:
+    CIUDAD = "Tehuacán"
 CIUDAD_POR_DEFECTO = CIUDAD
 
 URL_CLIMA = f"https://wttr.in/{quote(CIUDAD)}?format=%C+%t&lang=es"
