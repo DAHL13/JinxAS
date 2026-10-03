@@ -139,7 +139,7 @@ La suite de pruebas unitarias está desacoplada de hardware pesado y se ejecuta 
 ```bash
 python -m pytest -q
 ```
-*(188 pruebas pasando en verde)*.
+*(281 pruebas pasando en verde)*.
 
 Para evaluar la precisión del enrutamiento de herramientas contra el LLM real:
 ```bash
@@ -175,7 +175,7 @@ JinxAS/
 │   ├── BASELINE.md            # Línea base de hardware, latencias y telemetría
 │   └── TROUBLESHOOTING.md     # Guía de solución de problemas en Windows
 ├── jinxas/                    # Paquete principal del asistente (PEP 621)
-│   ├── __init__.py            # Versión v0.5.0 y registro de módulo
+│   ├── __init__.py            # Versión v0.5.1 y registro de módulo
 │   ├── __main__.py            # Orquestador del bucle de voz y GUI
 │   ├── atajos.py              # Enrutador determinista por regex (0 ms LLM)
 │   ├── cerebro.py             # Cliente Ollama, tool calling y métricas tok/s
@@ -231,7 +231,7 @@ A raíz de una auditoría exhaustiva de arquitectura (septiembre de 2026), JinxA
 | **Fase 4** | Herramientas confiables | ✅ | `registro.py` como fuente única de verdad, allowlist estricto `exe:`/`uri:`, optimización de latencia de CPU (100 ms) y benchmark `eval_tools.py`. |
 | **Fase 5** | Seguridad, privacidad y documentación | ✅ | Licencia MIT, logs higienizados (JINX_LOG), envoltura de tools y normalización unificada (DRY). |
 | **Fase 6** | Panel SENTINEL honesto y funcional | ✅ | Panel SENTINEL 100% offline (sin CDNs), telemetría real (tok/s), llamadas JS seguras vía `_eval` y layout responsivo. |
-| **Fase 7** | Pruebas de integración, CI y cierre | ✅ | Paquete jinxas/, CI en GitHub Actions, 188 tests unitarios limpios (sin warnings), ARQUITECTURA.md y release v0.5.0 auditado. |
+| **Fase 7** | Pruebas de integración, CI y cierre | ✅ | Paquete jinxas/, CI en GitHub Actions, 281 tests unitarios limpios (sin warnings), ARQUITECTURA.md y release v0.5.1 auditado y remediado. |
 
 ---
 

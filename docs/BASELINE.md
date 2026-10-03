@@ -58,10 +58,10 @@ La siguiente tabla resume el impacto arquitectónico y las mejoras medidas o pro
 |---|:---:|:---:|:---:|---|
 | **STT recurrente** (F1-04 / F1-05) | 9,185 ms | 2,800 – 3,500 ms | *[Pendiente sesión de voz en vivo]* | Caché en RAM de `_MODELO_WHISPER_COMANDOS` y eliminación de `adjust_for_ambient_noise` en comandos. Ahorro de ~5.5 s. |
 | **LLM en conversación** (F2-01) | 18,393 ms | 12,000 – 15,000 ms | *[Pendiente sesión de voz en vivo]* | `LLM_KEEP_ALIVE = "30m"` evita evicciones de RAM. Opciones fijadas: `num_ctx: 4096`, `num_predict: 256`. |
-| **Atajos deterministas** (F2-03) | 18,393 ms | **0 ms** (bypass LLM) | **0 ms** ✅ | Comandos como *"abre la calculadora"* o *"cómo está la RAM"* resueltos directamente por [atajos.py](file:///c:/Users/Pcrz/Documents/JinxAS/atajos.py). |
+| **Atajos deterministas** (F2-03) | 18,393 ms | **0 ms** (bypass LLM) | **0 ms** ✅ | Comandos como *"abre la calculadora"* o *"cómo está la RAM"* resueltos directamente por [atajos.py](../jinxas/atajos.py). |
 | **TTFA (Time to First Audio)** (F2-02 / F2-06) | ~34,511 ms | **1,500 – 2,500 ms** (post-STT) | *[Pendiente sesión de voz en vivo]* | Streaming por frases (`FIN_DE_FRASE` + productor/consumidor). El primer audio suena con la primera frase emitida por Ollama. |
-| **Arranque en frío global** (F2-07) | 11.3 s | **< 1.8 s** | **~1.5 s** ✅ | Lazy imports en [memoria_rag.py](file:///c:/Users/Pcrz/Documents/JinxAS/memoria_rag.py) e indexación FAISS en hilo daemon en segundo plano (`_lock_rag`). |
-| **Consulta de Clima** (F2-08) | 800 – 1,800 ms (HTTP) | **< 1 ms** (cache hit) | **< 1 ms** ✅ | Caché en memoria de 10 minutos (600 s TTL) en `obtener_clima()` ([herramientas.py](file:///c:/Users/Pcrz/Documents/JinxAS/herramientas.py)). |
+| **Arranque en frío global** (F2-07) | 11.3 s | **< 1.8 s** | **~1.5 s** ✅ | Lazy imports en [memoria_rag.py](../jinxas/memoria_rag.py) e indexación FAISS en hilo daemon en segundo plano (`_lock_rag`). |
+| **Consulta de Clima** (F2-08) | 800 – 1,800 ms (HTTP) | **< 1 ms** (cache hit) | **< 1 ms** ✅ | Caché en memoria de 10 minutos (600 s TTL) en `obtener_clima()` ([herramientas.py](../jinxas/herramientas.py)). |
 
 > [!NOTE]  
 > Los valores marcados como *`[Pendiente sesión de voz en vivo]`* corresponden a métricas end-to-end con micrófono en caliente (`[METRICA_HONESTA]` y `[TURNO]`). Serán rellenados automáticamente con la mediana obtenida tras completar una sesión de voz de 10 turnos representativos.
@@ -75,7 +75,7 @@ La siguiente tabla resume el impacto arquitectónico y las mejoras medidas o pro
 - **Contexto:** La auditoría inicial contempló la migración de `openai-whisper` a `faster-whisper` (basado en `CTranslate2`) para acelerar la transcripción en CPU.
 - **Evaluación y hallazgos:**  
   1. El cuello de botella principal de STT en Fase 0 no era la velocidad del kernel de inferencia, sino la **recarga del modelo desde disco por turno (~2.5 s)** y la **calibración síncrona innecesaria de ruido ambiental (~1.0 s)**.
-  2. Al implementar la caché perezosa en RAM `_MODELO_WHISPER_COMANDOS` ([percepcion.py](file:///c:/Users/Pcrz/Documents/JinxAS/percepcion.py), F1-04) y suprimir la recalibración en cada comando (F1-05), la latencia pura de transcripción en los turnos 2 en adelante cayó drásticamente a rangos plenamente aceptables para la experiencia de usuario (2.5 - 3.5 s para ráfagas cortas).
+  2. Al implementar la caché perezosa en RAM `_MODELO_WHISPER_COMANDOS` ([percepcion.py](../jinxas/percepcion.py), F1-04) y suprimir la recalibración en cada comando (F1-05), la latencia pura de transcripción en los turnos 2 en adelante cayó drásticamente a rangos plenamente aceptables para la experiencia de usuario (2.5 - 3.5 s para ráfagas cortas).
   3. `faster-whisper` y su runtime `ctranslate2` introducen dependencias binarias pesadas con problemas conocidos de compilación/enlazado en Windows y posibles conflictos de librerías dinámicas OpenMP con PyTorch y FAISS.
 - **Decisión:** Se mantiene **`openai-whisper`** (`small`) como motor oficial en esta fase. Se pospone `faster-whisper` como una optimización opcional futura únicamente si se requiere soporte en hardware aún más limitado.
 
@@ -83,7 +83,7 @@ La siguiente tabla resume el impacto arquitectónico y las mejoras medidas o pro
 
 - **Contexto:** Se evaluó si convenía reescribir o sustituir el centinela con librerías alternativas de wake word (como Porcupine o OpenWakeWord).
 - **Evaluación y hallazgos:**  
-  1. Las funciones `esperar_palabra_activacion()` y `coincide_wakeword()` en [percepcion.py](file:///c:/Users/Pcrz/Documents/JinxAS/percepcion.py) utilizan Whisper `tiny.en` con ráfagas cortas procesadas con Voice Activity Detection nativo y comparación difusa con `thefuzz`.
+  1. Las funciones `esperar_palabra_activacion()` y `coincide_wakeword()` en [percepcion.py](../jinxas/percepcion.py) utilizan Whisper `tiny.en` con ráfagas cortas procesadas con Voice Activity Detection nativo y comparación difusa con `thefuzz`.
   2. Este mecanismo demostró una tasa de falsos positivos prácticamente nula y una precisión fonética sobresaliente en pruebas de campo continuas, consumiendo niveles despreciables de CPU en reposo gracias a los sleeps y timeouts de VAD.
 - **Decisión (Política de Estabilidad):** `esperar_palabra_activacion()` y `coincide_wakeword()` **se congelan sin modificaciones**. Se preserva la estabilidad del wake word intacta durante todo el ciclo de consolidación.
 
@@ -93,7 +93,7 @@ La siguiente tabla resume el impacto arquitectónico y las mejoras medidas o pro
 
 Para consolidar las celdas marcadas como pendientes tras una sesión de voz:
 
-1. Ejecutar el asistente con streaming habilitado (`STREAMING = True` en [config.py](file:///c:/Users/Pcrz/Documents/JinxAS/config.py)):
+1. Ejecutar el asistente con streaming habilitado (`STREAMING = True` en [config.py](../jinxas/config.py)):
    ```bash
    python main.py
    ```
@@ -109,7 +109,7 @@ Para consolidar las celdas marcadas como pendientes tras una sesión de voz:
 
 ## 6. Evaluación de Enrutamiento de Herramientas (F4-07)
 
-Como parte de la consolidación del subsistema de herramientas y la validación de *tool calling* nativo con modelos locales cuantizados en CPU, se ejecutó el benchmark formal [tests/eval_tools.py](file:///c:/Users/Pcrz/Documents/JinxAS/tests/eval_tools.py).
+Como parte de la consolidación del subsistema de herramientas y la validación de *tool calling* nativo con modelos locales cuantizados en CPU, se ejecutó el benchmark formal [tests/eval_tools.py](../tests/eval_tools.py).
 
 ### 6.1. Resultados del Benchmark de Tool Calling
 

@@ -256,3 +256,168 @@
 | **En palabras simples** | Si ocurría un fallo de red inesperado al pedir el clima, podía fallar feo. Ahora captura cualquier excepción y hay 11 pruebas de resiliencia. |
 | **Decisión** | Corregir |
 | **Estado** | ✅ Corregido — commits `43fb721` y `31efa64` |
+
+---
+
+## H-017 — Concurrencia en panel y reproducción de audio
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/interfaz.py, jinxas/__main__.py, jinxas/percepcion.py, jinxas/voz.py |
+| **Condición** | Emergency Flush no purgaba de inmediato la memoria compartida ni cancelaba la escucha centinela; `repetir_audio_ui` lanzaba hilos concurrentes que solapaban audio con el bucle de voz principal. |
+| **Criterio** | C2 (ISO 25010 — Fiabilidad y Tolerancia a Fallos), C3 (CWE-362 Concurrency Race Conditions) |
+| **Causa** | Falta de tupla de eventos de interrupción en `esperar_palabra_activacion` y ausencia de mutex en `reproducir_voz`. |
+| **Efecto** | Audios solapados en parlantes y retención de memoria residual tras presionar Flush. |
+| **Severidad** | **ALTO** |
+| **CWE** | CWE-362 |
+| **En palabras simples** | Si pulsabas Flush o Repetir audio, la voz podía sonar dos veces a la vez o recordar cosas que acababas de borrar. Ahora el audio y la memoria se coordinan con cerrojos y eventos de parada inmediata. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `dbdf313` | Prueba: `tests/test_h017_panel_audio.py` |
+
+---
+
+## H-018 — Integridad del índice FAISS y caché RAG ante bloqueos y fallos parciales
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/memoria_rag.py |
+| **Condición** | La escritura de `indice.faiss` y `manifiesto.json` no era atómica; ante un fallo de disco o apagado el índice quedaba corrupto. Además, el hash SHA-1 de cada archivo se recalculaba sin necesidad en cada comprobación, y si fallaba `ntotal` el sistema se desfasaba. |
+| **Criterio** | C2 (ISO 25010 — Fiabilidad e Integridad de Datos) |
+| **Causa** | Falta de escritura en archivo temporal con reemplazo atómico (`os.replace`) y falta de comprobación lazy con `mtime`/`size`. |
+| **Efecto** | Corrupción silenciosa del índice vectorial y latencia innecesaria en CPU. |
+| **Severidad** | **ALTO** |
+| **En palabras simples** | Si el programa se cerraba a mitad de guardar las notas en la base de datos de búsqueda, el índice se rompía. Ahora se guarda en un archivo temporal seguro y solo se actualiza si el archivo realmente cambió en disco. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `7693082` | Prueba: `tests/test_h018_rag_integridad.py` |
+
+---
+
+## H-019 — Truncado de salida de herramientas y gestión de presupuesto de contexto en LLM
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/config.py, jinxas/__main__.py, jinxas/cerebro.py, jinxas/memoria_rag.py |
+| **Condición** | El truncado de 1500 caracteres cortaba notas RAG legítimas de 3 fragmentos (~2700 chars). `LLM_OPCIONES` en `config.py` fijaba `num_ctx: 2048` y `num_predict: 160`, insuficiente para 3 fragmentos de 900 caracteres. No había advertencia al saturar el contexto. |
+| **Criterio** | C1 (Alineación con BASELINE.md), C2 (ISO 25010 — Adecuación Funcional) |
+| **Causa** | Desajuste histórico entre la configuración de contexto y el presupuesto de caracteres de tools. |
+| **Efecto** | El asistente recibía respuestas fragmentadas o incompletas de notas de Obsidian, rompiendo la capacidad de síntesis del LLM. |
+| **Severidad** | **ALTO** |
+| **En palabras simples** | Cuando el asistente buscaba en tus notas, recortaba la información a la mitad porque el límite era muy chico. Ahora el espacio se duplicó a 4096 tokens y el asistente puede leer notas completas sin desbordar la memoria. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `dfae17e` | Prueba: `tests/test_h019_truncados.py` |
+
+---
+
+## H-020 — Falsos positivos en detección de palabra de activación del Centinela
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/config.py, jinxas/percepcion.py |
+| **Condición** | Con umbral de fuzzy matching en 80, palabras monosilábicas o comunes en inglés/español como "links", "sinks", "think" o tokens cortos activaban falsamente a Jinx. |
+| **Criterio** | C2 (ISO 25010 — Usabilidad y Fiabilidad) |
+| **Causa** | Umbral difuso demasiado permisivo (80%) y comparación sin filtrar tokens de longitud < 3 letras. |
+| **Efecto** | El asistente se despertaba espontáneamente por ruido ambiental o palabras no dirigidas a él. |
+| **Severidad** | **MEDIO** |
+| **En palabras simples** | Jinx se activaba sola cuando alguien decía palabras parecidas como "think" o "links". Subimos la exigencia de coincidencia a 90% y descartamos palabras de 1 o 2 letras para que solo despierte cuando realmente la llamas. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `cf6d476` | Prueba: `tests/test_h020_wakeword.py` |
+
+---
+
+## H-021 — Exposición de contenido sensible de usuario en registros de logging a nivel INFO
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/percepcion.py |
+| **Condición** | Transcripciones completas de voz del usuario y palabras reconocidas por el centinela se emitían a nivel `INFO` en `logs/jinx.log`. |
+| **Criterio** | C3 (OWASP LLM06: Sensitive Information Disclosure, CWE-532) |
+| **Causa** | Niveles de log no diferenciados entre metadatos y contenido en percepción. |
+| **Efecto** | Los archivos de log almacenaban en texto claro todo lo dictado por el usuario frente al micrófono. |
+| **Severidad** | **MEDIO** |
+| **CWE** | CWE-532 |
+| **En palabras simples** | Las cosas que decías por el micrófono quedaban escritas tal cual en los archivos de registro. Ahora solo se guardan detalles técnicos en modo normal, y el texto exacto solo se guarda si el usuario activa el modo de depuración avanzada (DEBUG). |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `eceda39` | Prueba: `tests/test_h021_logs_privacidad.py` |
+
+---
+
+## H-022 — Riesgo de Cross-Site Scripting (XSS) en panel SENTINEL por interpolación de innerHTML
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/ui/panel.html |
+| **Condición** | La función JS `addLog` insertaba registros formateados mediante `innerHTML = ... + content`, permitiendo la inyección de código HTML/JS si un log contenía etiquetas no escapadas. |
+| **Criterio** | C3 (OWASP Top 10 / CWE-79 Cross-Site Scripting) |
+| **Causa** | Uso de concatenación directa de cadenas HTML con datos no sanitizados en la interfaz. |
+| **Efecto** | Potencial ejecución de scripts maliciosos en el motor web de Edge WebView2 ante logs malformados. |
+| **Severidad** | **MEDIO** |
+| **CWE** | CWE-79 |
+| **En palabras simples** | La consola visual de la ventana usaba una técnica que permitía que texto con código malicioso pudiera ejecutarse dentro de la ventana. Se cambió por una técnica segura que trata todo el texto como letras planas sin interpretar código. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `830d5d6` | Prueba: `tests/test_h022_panel.py` |
+
+---
+
+## H-023 — Fallo al abrir navegadores Edge y Chrome en Windows vía App Paths
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/config.py, jinxas/herramientas.py |
+| **Condición** | `abrir_aplicacion` resolvía `exe:msedge` y `exe:chrome` con `shutil.which`. En Windows, los navegadores no suelen estar en el PATH global sino en el registro de Windows (App Paths), provocando un fallo "No encontré navegador instalada". |
+| **Criterio** | C2 (ISO 25010 — Compatibilidad y Adecuación Funcional en Windows) |
+| **Causa** | Falta de soporte de resolución nativa vía ShellExecute para aplicaciones registradas en App Paths. |
+| **Efecto** | El usuario no podía abrir Microsoft Edge ni Google Chrome por comando de voz. |
+| **Severidad** | **MEDIO** |
+| **En palabras simples** | Cuando le pedías abrir Edge o Chrome, Windows decía que no los encontraba porque no estaban en su lista básica de programas. Ahora usa el mecanismo nativo de Windows (ShellExecute) que sabe exactamente dónde están instalados los navegadores. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `56f01bc` | Prueba: `tests/test_h023_abrir_navegadores.py` |
+
+---
+
+## H-024 — Nombres de dispositivos reservados de Windows con extensiones no prefijados
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/memoria.py |
+| **Condición** | `_normalizar_nombre_archivo` solo evaluaba el nombre exacto sin considerar que en Windows el nombre reservado es el segmento previo al primer punto (`CON.md`, `nul.txt`, `aux.notas`, `COM1.md`). |
+| **Criterio** | C2 (ISO 25010 — Fiabilidad y Robustez en Windows), CWE-22 / CWE-706 |
+| **Causa** | Verificación estricta de igualdad en lugar de extraer el radical antes del delimitador `.`. |
+| **Efecto** | Intentar guardar notas con esos títulos causaba errores de I/O a nivel de kernel de Windows o fallos en el sistema de archivos. |
+| **Severidad** | **ALTO** |
+| **CWE** | CWE-706 |
+| **En palabras simples** | En Windows no puedes crear archivos que se llamen `CON.md` o `nul.txt` porque son nombres que la computadora tiene reservados para su uso interno. Si el usuario dictaba una nota con ese título, fallaba; ahora el sistema le añade automáticamente el prefijo `nota ` para que se guarde sin problema. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `3b6d6cb` | Prueba: `tests/test_h024_nombres_reservados.py` |
+
+---
+
+## H-025 — Mejoras menores de ciclo de vida, dependencias y consistencia de UI
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/percepcion.py, jinxas/__main__.py, jinxas/config.py, jinxas/ui/panel.html, requirements.txt |
+| **Condición** | Primer comando sufría retrasos por carga síncrona de Whisper; bucles de rondas de herramientas podían dejar `tool_calls` colgados sin respuesta al alcanzar el límite; `config_local.py` usaba importación dinámica innecesaria; botón en UI decía "Regenerar" cuando solo repetía audio; dependencia redundante `python-Levenshtein`. |
+| **Criterio** | C2 (ISO 25010 — Eficiencia y Mantenibilidad), C4 (Dependencias limpias) |
+| **Causa** | Falta de hilo de precarga en arranque y ajustes menores de arquitectura. |
+| **Efecto** | Retardos innecesarios en primer turno y acumulación de advertencias. |
+| **Severidad** | **BAJO** |
+| **En palabras simples** | Ajustamos varios detalles pequeños: Whisper ahora se carga en silencio mientras se abre la ventana para responder más rápido, se saneó la memoria si el modelo pedía demasiadas acciones seguidas, y se eliminaron paquetes repetidos. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `cab7f53` | Prueba: `tests/test_h025_menores.py` |
+
+---
+
+## H-026 — Entorno de pruebas y CI desacoplado de dependencias reales
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | tests/conftest.py, requirements-dev.txt, .github/workflows/ci.yml, tests/test_rag_faiss_real.py |
+| **Condición** | Mocks incondicionales de `faiss` y `thefuzz` en CI impedían detectar fallos reales de indexación o coincidencia fonética. Faltaba escaneo automatizado de seguridad en el pipeline de GitHub Actions. |
+| **Criterio** | C2 (ISO 25010 — Calidad de Pruebas y Fiabilidad), C3 (Seguridad en Pipeline) |
+| **Causa** | Configuración de pruebas orientada a mocks sin fallback a librerías instaladas. |
+| **Efecto** | Falsa sensación de cobertura si las librerías reales cambiaban de comportamiento. |
+| **Severidad** | **MEDIO** |
+| **En palabras simples** | Las pruebas usaban simuladores en lugar de las librerías reales de búsqueda matemática. Ahora se instalaron las librerías reales y se agregaron escáneres automáticos de seguridad en GitHub para revisar el código cada vez que se sube un cambio. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `de671da` | Prueba: `tests/test_rag_faiss_real.py` |
+

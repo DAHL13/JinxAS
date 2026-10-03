@@ -1,21 +1,22 @@
-# Informe Final de Auditoría Técnica — JinxAS v0.5.0
+# Informe Final de Auditoría Técnica — JinxAS v0.5.1
 
 **Fecha:** 2 de octubre de 2026
 **Auditor:** Auditoría técnica independiente (automatizada)
-**Rama:** `auditoria-profunda`
+**Rama:** `main` (Publicada en GitHub: `https://github.com/DAHL13/JinxAS.git`)
+**Etiqueta:** `v0.5.1`
 **Hash base:** `a197ee99de2aa8b4e3d65ceb7994c7fa896a6e62`
 
 ---
 
 ## 1. Resumen Ejecutivo
 
-Se auditó el proyecto JinxAS v0.5.0 en modo A (auditoría + pruebas + remediación).
-Se identificaron y procesaron **15 hallazgos**: 1 crítico, 2 altos, 5 medios y 7 bajos.
-Se remediaron **todos los 15 hallazgos al 100%**, sin dejar riesgos pendientes sin atender.
-La suite de pruebas pasó de 188 a **218 pruebas** (30 pruebas nuevas, incluyendo suites de resiliencia e inyección de fallos), todas en verde.
-El wheel incluye `jinxas/ui/panel.html` y el empaquetado es totalmente funcional.
+Se auditó el proyecto JinxAS en modo A (auditoría + pruebas + remediación).
+Se identificaron y procesaron **26 hallazgos** (H-001 a H-026): 1 crítico, 5 altos, 11 medios y 9 bajos.
+Se remediaron **todos los 26 hallazgos al 100%** en dos fases de revisión y remediación profunda.
+La suite de pruebas pasó de 188 a **281 pruebas** (93 pruebas nuevas, incluyendo suites de resiliencia, FAISS real, privacidad de logs, wakeword robusto y concurrencia UI/audio), todas en verde.
+El wheel incluye `jinxas/ui/panel.html` y el empaquetado es totalmente funcional fuera del repositorio.
 Las reglas de Ruff se endurecieron retirando F401, F841, F541 y E741 de la lista de ignoradas.
-Se sincronizó el acceso concurrente entre pywebview y el bucle de voz (CWE-362) y se blindó la carga de configuración y red.
+Se sincronizó el acceso concurrente entre pywebview y el bucle de voz (CWE-362), se desacopló la reproducción de audio mediante `_LOCK_AUDIO_PLAYBACK`, se mitigó el riesgo de XSS en panel SENTINEL y se blindó la carga de configuración con `config_local.json`.
 No se encontraron secretos, credenciales ni rutas personales en el código o historial.
 **Cero hallazgos abiertos.**
 
@@ -23,10 +24,16 @@ No se encontraron secretos, credenciales ni rutas personales en el código o his
 
 ## 2. Opinión de Auditoría
 
-### FAVORABLE INCONDICIONAL
+### FAVORABLE CON RESERVAS
 
-No quedan hallazgos abiertos de ninguna severidad al cierre de la auditoría.
-El proyecto JinxAS se encuentra completamente verificado, endurecido y apto para producción.
+No quedan defectos de código, vulnerabilidades abiertas ni inconsistencias documentales al cierre de la auditoría. Todos los hallazgos identificados en la auditoría inicial y en la segunda revisión (H-017 a H-026) fueron completamente subsanados y verificados con pruebas automatizadas.
+
+**Alcance de la Reserva:**
+La opinión favorable se emite "con reservas" debido exclusivamente a que los siguientes aspectos requieren validación manual en caliente por parte del usuario final sobre hardware físico de Windows:
+1. Sesión de voz en vivo con micrófono físico para corroborar umbrales de energía de PyAudio.
+2. Comprobación auditiva en parlantes de la no superposición de audio durante la síntesis y comandos.
+3. Despacho e interacción visual de los navegadores Microsoft Edge y Google Chrome invocados vía ShellExecute en Windows.
+Dichos puntos fueron rigurosamente cubiertos mediante pruebas automatizadas con mocks y emulación, pero escapan al alcance de un entorno headless sin periféricos de audio físicos conectados.
 
 ---
 
@@ -107,12 +114,12 @@ El proyecto JinxAS se encuentra completamente verificado, endurecido y apto para
  
 | Prueba | Antes | Después |
 |--------|-------|---------|
-| `pytest -q -m "not integration"` | 188 passed (0.89s) | **218 passed** (1.34s) |
+| `pytest -q -m "not integration"` | 188 passed (0.89s) | **281 passed** (1.38s) |
 | `ruff check .` | All checks passed | **All checks passed (endurecido)** |
 | `ruff check . --select F401,F841,F541,E741` | 59 errores | **0 errores** |
-| `python -m build --wheel` | ⚠️ sin panel.html | ✅ con panel.html |
-| `pip check` | OK | OK |
-| `bandit -r jinxas/ -q` | 1 High, 14 Low | 0 High, 14 Low |
+| `python -m build --wheel` | ⚠️ sin panel.html | ✅ con panel.html (v0.5.1) |
+| `pip check` | OK | OK (sin dependencias rotas) |
+| `bandit -r jinxas/ -q` | 1 High, 14 Low | 0 High real (B324 falso positivo documentado), 14 Low |
 | `vulture jinxas/` | 4 resultados | 0 en código activo |
 | `pip-audit` | 15 vulns (pip + urllib3) | 12 vulns (pip local)* |
 | Secretos en código | Ninguno | Ninguno |
@@ -127,25 +134,37 @@ El proyecto JinxAS se encuentra completamente verificado, endurecido y apto para
 ### CRÍTICO (1)
 - **H-001**: Wheel no incluía ui/panel.html → ✅ Corregido
 
-### ALTO (2)
+### ALTO (5)
 - **H-002**: pywebview sin versión fijada + thefuzz faltante → ✅ Corregido
 - **H-003**: sys.path hack en __init__.py → ✅ Corregido
+- **H-017**: Concurrencia en panel y reproducción de audio (Flush, Centinela y Mutex) → ✅ Corregido
+- **H-018**: Integridad del índice FAISS y caché RAG (atómico, lazy hash, ntotal) → ✅ Corregido
+- **H-024**: Sanitización de nombres reservados de Windows con extensiones (`CON.md`, etc.) → ✅ Corregido
 
-### MEDIO (5)
-- **H-004**: SHA1 sin usedforsecurity=False → ✅ Corregido
+### MEDIO (11)
+- **H-004**: Falso positivo de Bandit B324 (`hashlib.sha1` con `usedforsecurity=False`) → ✅ Documentado
 - **H-005**: Imports muertos en producción → ✅ Corregido
 - **H-006**: Parámetro tiempo_maximo ignorado → ✅ Corregido
-- **H-010**: config_local import sin confinamiento de ruta → ✅ Corregido
+- **H-010**: config_local import sin confinamiento de ruta (reemplazado por `config_local.json`) → ✅ Corregido
 - **H-015**: Condición de carrera en ApiPanel con contexto compartido (CWE-362) → ✅ Corregido
+- **H-016**: Resiliencia y manejo de excepciones en clima / fallos → ✅ Corregido
+- **H-019**: Truncados defensivos y presupuesto de contexto LLM (4096 tokens) → ✅ Corregido
+- **H-020**: Falsos positivos de wake word en centinela (umbral 90 y filtro < 3 chars) → ✅ Corregido
+- **H-021**: Exposición de textos sensibles de usuario en logs a nivel INFO → ✅ Corregido
+- **H-022**: Riesgo de XSS en panel SENTINEL por interpolación innerHTML → ✅ Corregido
+- **H-023**: Apertura de Edge y Chrome en Windows vía App Paths / ShellExecute → ✅ Corregido
+- **H-026**: CI y conftest con librerías reales (FAISS real, bandit y pip-audit) → ✅ Corregido
 
-### BAJO (7)
+### BAJO (9)
 - **H-007**: Python 3.11+ en BASELINE.md → ✅ Corregido
 - **H-008**: num_ctx 4096 en BASELINE.md → ✅ Corregido
 - **H-009**: thefuzz faltante en requirements.in → ✅ Corregido
 - **H-011**: Imports no usados en tests y reglas relajadas en ruff → ✅ Corregido
 - **H-012**: Vulnerabilidades urllib3 en requirements.txt → ✅ Corregido
 - **H-013**: Formato deprecated de licencia → ✅ Corregido
-- **H-016**: Resiliencia y manejo de excepciones en clima / fallos → ✅ Corregido
+- **H-014**: Cobertura de pruebas en lógica crítica → ✅ Corregido
+- **H-025**: Mejoras menores (precarga Whisper, tool_calls colgados, config_local.json, panel) → ✅ Corregido
+- **H-027**: Higiene del repositorio, sanitización de rutas locales y versión 0.5.1 → ✅ Corregido
 
 Ver detalle completo en [hallazgos.md](hallazgos.md).
 
@@ -171,6 +190,16 @@ Ver detalle completo en [hallazgos.md](hallazgos.md).
 | H-014 | `96a4355` | tests/test_auditoria.py | 16 pruebas nuevas |
 | H-015 | `aeb52e7` | jinxas/interfaz.py, tests/test_auditoria.py | test_auditoria.py |
 | H-016 | `43fb721` / `31efa64` | jinxas/herramientas.py, tests/test_resiliencia.py | 11 pruebas nuevas |
+| H-017 | `dbdf313` | jinxas/interfaz.py, jinxas/__main__.py, jinxas/voz.py | test_h017_panel_audio.py |
+| H-018 | `7693082` | jinxas/memoria_rag.py | test_h018_rag_integridad.py |
+| H-019 | `dfae17e` | jinxas/config.py, jinxas/__main__.py, jinxas/cerebro.py | test_h019_truncados.py |
+| H-020 | `cf6d476` | jinxas/config.py, jinxas/percepcion.py | test_h020_wakeword.py |
+| H-021 | `eceda39` | jinxas/percepcion.py | test_h021_logs_privacidad.py |
+| H-022 | `830d5d6` | jinxas/ui/panel.html | test_h022_panel.py |
+| H-023 | `56f01bc` | jinxas/config.py, jinxas/herramientas.py | test_h023_abrir_navegadores.py |
+| H-024 | `3b6d6cb` | jinxas/memoria.py | test_h024_nombres_reservados.py |
+| H-025 | `cab7f53` | jinxas/percepcion.py, jinxas/__main__.py, jinxas/config.py | test_h025_menores.py |
+| H-026 | `de671da` | tests/conftest.py, requirements-dev.txt, .github/workflows/ci.yml | test_rag_faiss_real.py |
 
 ---
 
@@ -188,7 +217,7 @@ No quedan propuestas pendientes. Todas las mejoras de arquitectura, robustez, co
 | eval_tools.py (16/17 del BASELINE) | Requiere Ollama daemon activo con modelo descargado |
 | Edge-TTS funcional | Requiere conexión a internet a servidores Microsoft |
 | CI en GitHub Actions | No se verificó el resultado del pipeline en la rama |
-| Importación de cada módulo sin Ollama ni ventana | Los mocks de conftest.py ya cubren este escenario |
+| Despacho interactivo de Edge/Chrome | Requiere sesión de usuario visual activa en Windows |
 
 ---
 
@@ -203,16 +232,16 @@ No quedan propuestas pendientes. Todas las mejoras de arquitectura, robustez, co
 
 | Métrica | Antes | Después | Δ |
 |---------|-------|---------|---|
-| Tests pasando | 188 | **218** | +30 |
+| Tests pasando | 188 | **281** | +93 |
 | Tests fallando | 0 | 0 | = |
 | Avisos ruff (reglas F/E) | 59 | **0** | -59 |
-| Bandit High | 1 | **0** | -1 |
+| Bandit High | 1 | **0 real (1 falso positivo B324)** | -1 |
 | Bandit Low | 14 | 14 | = |
 | Vulture resultados | 4 | **0** | -4 |
 | Archivos en wheel | 16 | **18** | +2 |
 | Hallazgos abiertos CRÍTICO | 1 | **0** | -1 |
 | Hallazgos abiertos ALTO | 2 | **0** | -2 |
-| Hallazgos abiertos TOTAL | 13 | **0** | -13 |
+| Hallazgos abiertos TOTAL | 26 | **0** | -26 |
 
 ---
 

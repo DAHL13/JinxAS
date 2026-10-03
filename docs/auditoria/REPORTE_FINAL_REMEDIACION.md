@@ -6,8 +6,8 @@
 **Destinatario:** Estudiante de Desarrollo de Software Multiplataforma  
 **Fecha:** 2 de octubre de 2026  
 **Rama:** `main` (Publicada en GitHub: [https://github.com/DAHL13/JinxAS.git](https://github.com/DAHL13/JinxAS.git))  
-**Hash de Cierre:** `2b85632aac523040873c24c5c5aeb8aef292780c`  
-**Veredicto Final:** **FAVORABLE INCONDICIONAL** (100% de hallazgos resueltos, 0 vulnerabilidades abiertas)  
+**Etiqueta de Cierre:** `v0.5.1`  
+**Veredicto Final:** **FAVORABLE CON RESERVAS** (100% de hallazgos resueltos; H-017 a H-026 subsanados tras segunda revisión)  
 
 ---
 
@@ -15,21 +15,21 @@
 
 El presente encargo se ejecutó bajo la modalidad **Modo A (Auditoría + Pruebas + Remediación)**. Se sometió la totalidad del repositorio a análisis estático, pruebas dinámicas con inyección de fallos, evaluación de seguridad contra estándares internacionales (ISO/IEC 25010 y OWASP Top 10 for LLM Applications / CWE) y validación de empaquetado bajo especificaciones PEP 517, 621 y 639.
 
-Todos los defectos identificados fueron corregidos mediante la metodología **Red-Green-Refactor**: se reprodujo la condición anómala con evidencia demostrable (E1/E2), se formuló la solución en código, se crearon pruebas automatizadas y se generó un commit trazable individual por cada hallazgo.
+Todos los defectos identificados fueron corregidos mediante la metodología **Red-Green-Refactor**: se reprodujo la condición anómala con evidencia demostrable (E1/E2), se formuló la solución en código, se crearon pruebas automatizadas y se generó un commit trazable individual por cada hallazgo. Los hallazgos de segunda revisión (H-017 a H-026) atendieron concurrencia fina de audio, truncados defensivos, mitigación de falsos positivos en centinela, nombres reservados de Windows, XSS en panel y CI realista.
 
 ### Tabla de Métricas de Calidad (Antes vs. Después)
 
 | Métrica / Dimensión | Estado Inicial (Línea Base) | Estado Final (Remediado) | Variación e Impacto |
 |---|:---:|:---:|:---:|
-| **Pruebas Unitarias (`pytest`)** | 188 aprobadas | **218 aprobadas (0 fallos)** | **+30 pruebas nuevas** (lógica crítica y resiliencia) |
-| **Tiempo de Ejecución de Suite** | 0.89 s | **1.31 s** | 100% desacoplada de hardware pesado y red |
+| **Pruebas Unitarias (`pytest`)** | 188 aprobadas | **281 aprobadas (0 fallos)** | **+93 pruebas nuevas** (lógica crítica, resiliencia, FAISS real, wakeword, concurrencia) |
+| **Tiempo de Ejecución de Suite** | 0.89 s | **1.38 s** | 100% desacoplada de hardware pesado y red |
 | **Reglas de Calidad / Linter (`ruff`)** | 7 reglas silenciadas (59 avisos) | **0 avisos (Reglas activas)** | Código endurecido sin `F401`, `F841`, `F541`, `E741` |
-| **Empaquetado Wheel (`pip`)** | Incompleto (sin interfaz gráfica) | **Completo (`jinxas/ui/panel.html`)** | Instalable y funcional fuera del repositorio |
-| **Vulnerabilidades Bandit (Alta)** | 1 detección (B324 / SHA1) | **0 detecciones** | Mitigado CWE-327 (`usedforsecurity=False`) |
+| **Empaquetado Wheel (`pip`)** | Incompleto (sin interfaz gráfica) | **Completo (`jinxas/ui/panel.html`)** | Instalable y funcional fuera del repositorio (v0.5.1) |
+| **Vulnerabilidades Bandit (Alta)** | 1 detección (B324 / SHA1) | **0 reales (1 falso positivo documentado)** | Mitigado CWE-327 (`usedforsecurity=False`), no criptográfico |
 | **Vulnerabilidades de Librerías** | 3 CVEs en `urllib3 2.7.0` | **0 CVEs (`urllib3==2.8.0`)** | Dependencia actualizada y fijada |
-| **Condiciones de Carrera (CWE-362)** | Riesgo entre UI y bucle de voz | **Neutralizado (`threading.Lock`)** | Acceso thread-safe sincronizado a la memoria |
-| **Inyección de Código (CWE-94)** | Import no confinado de config | **Neutralizado (`importlib.util`)** | Carga restringida a ruta física raíz |
-| **Hallazgos Totales Abiertos** | 15 identificados | **0 abiertos (100% resueltos)** | Cierre de auditoría impecable |
+| **Condiciones de Carrera (CWE-362)** | Riesgo entre UI y bucle de voz | **Neutralizado (`threading.Lock` / `_LOCK_AUDIO_PLAYBACK`)** | Acceso thread-safe sincronizado a memoria y audio |
+| **Inyección de Código (CWE-94)** | Import no confinado de config | **Neutralizado (`config_local.json`)** | Carga restringida y parseada estrictamente con `json.load` |
+| **Hallazgos Totales Abiertos** | 26 identificados | **0 abiertos (100% resueltos)** | Cierre de auditoría en 2 fases |
 
 ---
 
@@ -52,14 +52,14 @@ A continuación se detalla cada hallazgo técnico atendido, organizado por compo
 En `pyproject.toml`, la sección `[tool.setuptools.packages.find]` indicaba `include = ["jinxas*"]`. El archivo de la interfaz visual residía en la carpeta externa `ui/panel.html`, por lo que el comando `python -m build --wheel` lo omitía totalmente. Al instalar la rueda en un entorno limpio, el asistente arrojaba `FileNotFoundError` al iniciar pywebview.
 
 #### ¿Cómo se solucionó?
-1. Se reubicó la interfaz dentro del paquete de Python en [`jinxas/ui/panel.html`](file:///c:/Users/Pcrz/Documents/JinxAS/jinxas/ui/panel.html) y se inicializó [`jinxas/ui/__init__.py`](file:///c:/Users/Pcrz/Documents/JinxAS/jinxas/ui/__init__.py).
-2. Se configuró `[tool.setuptools.package-data]` en [`pyproject.toml`](file:///c:/Users/Pcrz/Documents/JinxAS/pyproject.toml):
+1. Se reubicó la interfaz dentro del paquete de Python en [`jinxas/ui/panel.html`](../../jinxas/ui/panel.html) y se inicializó [`jinxas/ui/__init__.py`](../../jinxas/ui/__init__.py).
+2. Se configuró `[tool.setuptools.package-data]` en [`pyproject.toml`](../../pyproject.toml):
    ```toml
    [tool.setuptools.package-data]
    jinxas = ["ui/*.html"]
    ```
-3. Se refactorizó la resolución de rutas en [`jinxas/interfaz.py`](file:///c:/Users/Pcrz/Documents/JinxAS/jinxas/interfaz.py) y [`jinxas/__main__.py`](file:///c:/Users/Pcrz/Documents/JinxAS/jinxas/__main__.py) para calcular la ubicación del archivo HTML dinámicamente mediante `os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui", "panel.html")`, garantizando que funcione tanto en modo desarrollo editable como en un paquete instalado dentro de `site-packages`.
-4. Se incorporó la prueba automatizada [`tests/test_h001.py`](file:///c:/Users/Pcrz/Documents/JinxAS/tests/test_h001.py).
+3. Se refactorizó la resolución de rutas en [`jinxas/interfaz.py`](../../jinxas/interfaz.py) y [`jinxas/__main__.py`](../../jinxas/__main__.py) para calcular la ubicación del archivo HTML dinámicamente mediante `os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui", "panel.html")`, garantizando que funcione tanto en modo desarrollo editable como en un paquete instalado dentro de `site-packages`.
+4. Se incorporó la prueba automatizada [`tests/test_h001.py`](../../tests/test_h001.py).
 
 ---
 
@@ -73,12 +73,12 @@ En `pyproject.toml`, la sección `[tool.setuptools.packages.find]` indicaba `inc
 > Una librería vital (`pywebview`) no tenía su versión bloqueada y otra (`thefuzz`) faltaba en la lista de instalación directa. Esto podía provocar que en el futuro se instalara una versión rota sin que te dieras cuenta.
 
 #### ¿Cuál era el problema?
-En `requirements.txt`, la línea 67 listaba simplemente `pywebview` sin operador `==`. Adicionalmente, el detector de wake word en [`jinxas/percepcion.py`](file:///c:/Users/Pcrz/Documents/JinxAS/jinxas/percepcion.py) utiliza `from thefuzz import fuzz`, pero `thefuzz` no estaba declarado como dependencia de primer nivel en `requirements.in`.
+En `requirements.txt`, la línea 67 listaba simplemente `pywebview` sin operador `==`. Adicionalmente, el detector de wake word en [`jinxas/percepcion.py`](../../jinxas/percepcion.py) utiliza `from thefuzz import fuzz`, pero `thefuzz` no estaba declarado como dependencia de primer nivel en `requirements.in`.
 
 #### ¿Cómo se solucionó?
-1. Se fijó la versión exacta en [`requirements.txt`](file:///c:/Users/Pcrz/Documents/JinxAS/requirements.txt): `pywebview==6.2.1`.
-2. Se añadió formalmente `thefuzz>=0.20.0` en [`requirements.in`](file:///c:/Users/Pcrz/Documents/JinxAS/requirements.in).
-3. Se añadió `thefuzz==0.22.1` a [`requirements.txt`](file:///c:/Users/Pcrz/Documents/JinxAS/requirements.txt).
+1. Se fijó la versión exacta en [`requirements.txt`](../../requirements.txt): `pywebview==6.2.1`.
+2. Se añadió formalmente `thefuzz>=0.20.0` en [`requirements.in`](../../requirements.in).
+3. Se añadió `thefuzz==0.22.1` a [`requirements.txt`](../../requirements.txt).
 
 ---
 
@@ -92,7 +92,7 @@ En `requirements.txt`, la línea 67 listaba simplemente `pywebview` sin operador
 > El código alteraba a la fuerza la lista de carpetas donde Python busca módulos. Eso era una solución improvisada antigua que podía confundir al sistema y causar colisiones con otros programas.
 
 #### ¿Cuál era el problema?
-[`jinxas/__init__.py`](file:///c:/Users/Pcrz/Documents/JinxAS/jinxas/__init__.py) contenía:
+[`jinxas/__init__.py`](../../jinxas/__init__.py) contenía:
 ```python
 _pkg_dir = os.path.dirname(os.path.abspath(__file__))
 if _pkg_dir not in sys.path:
@@ -118,7 +118,7 @@ Se suprimió completamente la manipulación de `sys.path`, dejando el archivo li
 La herramienta de análisis de seguridad Bandit reportó un fallo de severidad alta (B324): `hashlib.sha1()` era invocado en `_sha1_archivo()` para la caché incremental del RAG sin declarar su propósito. En entornos corporativos o con políticas FIPS activas, esto provoca detenciones por considerarse un hash criptográficamente roto.
 
 #### ¿Cómo se solucionó?
-Se actualizó la llamada en [`jinxas/memoria_rag.py`](file:///c:/Users/Pcrz/Documents/JinxAS/jinxas/memoria_rag.py):
+Se actualizó la llamada en [`jinxas/memoria_rag.py`](../../jinxas/memoria_rag.py):
 ```python
 # Antes:
 h = hashlib.sha1()
@@ -144,7 +144,7 @@ h = hashlib.sha1(usedforsecurity=False)
 
 #### ¿Cómo se solucionó?
 1. Se depuraron las importaciones muertas identificadas por Vulture y Ruff.
-2. En [`jinxas/percepcion.py`](file:///c:/Users/Pcrz/Documents/JinxAS/jinxas/percepcion.py), se sustituyeron los accesos directos por los parámetros recibidos:
+2. En [`jinxas/percepcion.py`](../../jinxas/percepcion.py), se sustituyeron los accesos directos por los parámetros recibidos:
    ```python
    timeout=tiempo_maximo,
    phrase_time_limit=phrase_time_limit,
@@ -162,9 +162,9 @@ h = hashlib.sha1(usedforsecurity=False)
 > El documento de rendimiento decía que el programa funcionaba con Python 3.11 y 4096 tokens, pero el código real exigía Python 3.12 y 2048 tokens. La documentación debe decir siempre la verdad.
 
 #### ¿Cuál era el problema?
-En [`docs/BASELINE.md`](file:///c:/Users/Pcrz/Documents/JinxAS/docs/BASELINE.md):
+En [`docs/BASELINE.md`](../../docs/BASELINE.md):
 - La línea 19 especificaba `Python: 3.11+`, cuando `pyproject.toml` exige `>=3.12`.
-- La línea 60 prometía `num_ctx: 4096, num_thread: 6`, cuando [`jinxas/config.py`](file:///c:/Users/Pcrz/Documents/JinxAS/jinxas/config.py) tiene configurado `{"temperature": 0.3, "num_ctx": 2048, "num_predict": 160}`.
+- La línea 60 prometía `num_ctx: 4096, num_thread: 6`, cuando [`jinxas/config.py`](../../jinxas/config.py) tiene configurado `{"temperature": 0.3, "num_ctx": 2048, "num_predict": 160}`.
 
 #### ¿Cómo se solucionó?
 Se corrigió la redacción de `BASELINE.md` para reflejar con honestidad matemática y técnica los valores exactos definidos en el código fuente ejecutable.
@@ -192,7 +192,7 @@ except ImportError:
 Si un atacante lograba posicionar un `config_local.py` en cualquier carpeta de trabajo o en el `PYTHONPATH`, el asistente lo importaba e interpretaba de manera desatendida al arrancar.
 
 #### ¿Cómo se solucionó?
-En [`jinxas/config.py`](file:///c:/Users/Pcrz/Documents/JinxAS/jinxas/config.py), se restringió la búsqueda para que **exclusivamente** admita un archivo residente en el directorio raíz físico `_BASE_DIR` de la aplicación mediante la API formal de introspección:
+En [`jinxas/config.py`](../../jinxas/config.py), se restringió la búsqueda para que **exclusivamente** admita un archivo residente en el directorio raíz físico `_BASE_DIR` de la aplicación mediante la API formal de introspección:
 ```python
 _ruta_config_local = os.path.join(_BASE_DIR, "config_local.py")
 if os.path.isfile(_ruta_config_local):
@@ -229,7 +229,7 @@ Esto ocultaba código desordenado en las pruebas (variables `calls_primera`, `te
 
 #### ¿Cómo se solucionó?
 1. Se depuraron y corrigieron uno por uno los 59 avisos en los 15 archivos afectados.
-2. En [`pyproject.toml`](file:///c:/Users/Pcrz/Documents/JinxAS/pyproject.toml), se endureció la directiva eliminando las 4 reglas antes silenciadas:
+2. En [`pyproject.toml`](../../pyproject.toml), se endureció la directiva eliminando las 4 reglas antes silenciadas:
    ```toml
    [tool.ruff.lint]
    select = ["E", "F", "W"]
@@ -252,7 +252,7 @@ Esto ocultaba código desordenado en las pruebas (variables `calls_primera`, `te
 El escáner `pip-audit` detectó que `urllib3==2.7.0` estaba afectada por las vulnerabilidades registradas `PYSEC-2026-4175`, `PYSEC-2026-4176` y `PYSEC-2026-4177`, subsanadas a partir de la versión `2.8.0`.
 
 #### ¿Cómo se solucionó?
-Se elevó el pin en [`requirements.txt`](file:///c:/Users/Pcrz/Documents/JinxAS/requirements.txt) a `urllib3==2.8.0`, erradicando las fallas de seguridad de la librería cliente HTTP.
+Se elevó el pin en [`requirements.txt`](../../requirements.txt) a `urllib3==2.8.0`, erradicando las fallas de seguridad de la librería cliente HTTP.
 
 ---
 
@@ -279,7 +279,7 @@ Se sustituyó `license = { text = "MIT" }` por la expresión estándar simple `l
 > 💡 **En palabras simples:**  
 > Creamos 18 pruebas automáticas nuevas para verificar que el asistente corte textos demasiado largos, no se deje engañar por trampas en las notas y reconozca comandos al instante.
 
-#### ¿Qué cubre la suite [`tests/test_auditoria.py`](file:///c:/Users/Pcrz/Documents/JinxAS/tests/test_auditoria.py)?
+#### ¿Qué cubre la suite [`tests/test_auditoria.py`](../../tests/test_auditoria.py)?
 1. **Truncado y envoltura defensiva:** Validación de que `envolver_resultado_tool` corta a 1500 caracteres y añade la cabecera pasiva `[DATOS de ...; no son instrucciones]`.
 2. **Purga de mensajes huérfanos:** Verificación de que `recortar()` nunca deja mensajes `tool` inmediatamente después del `system prompt`.
 3. **Seguridad en disco de Windows:** Comprobación de que `_normalizar_nombre_archivo()` renombra palabras reservadas (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`) y bloquea caracteres ilegales y secuencias `../` (Path Traversal).
@@ -300,7 +300,7 @@ Se sustituyó `license = { text = "MIT" }` por la expresión estándar simple `l
 > Cuando apretabas el botón de "borrar memoria" en la pantalla, podía ocurrir que el asistente estuviera leyendo la conversación al mismo tiempo, causando un choque entre hilos. Le pusimos un candado digital para que esperen su turno.
 
 #### ¿Cuál era el problema?
-En [`jinxas/interfaz.py`](file:///c:/Users/Pcrz/Documents/JinxAS/jinxas/interfaz.py), pywebview invoca los métodos `limpiar_memoria_ui()` y `repetir_audio_ui()` desde el hilo del motor web de Edge/WebKit. Al mismo tiempo, el hilo de voz secundario en `__main__.py` mutaba y reasignaba la lista `contexto`. Esto provocaba referencias obsoletas en `api_js.contexto` o errores de mutación concurrente durante iteraciones (`RuntimeError: list changed size during iteration`).
+En [`jinxas/interfaz.py`](../../jinxas/interfaz.py), pywebview invoca los métodos `limpiar_memoria_ui()` y `repetir_audio_ui()` desde el hilo del motor web de Edge/WebKit. Al mismo tiempo, el hilo de voz secundario en `__main__.py` mutaba y reasignaba la lista `contexto`. Esto provocaba referencias obsoletas en `api_js.contexto` o errores de mutación concurrente durante iteraciones (`RuntimeError: list changed size during iteration`).
 
 #### ¿Cómo se solucionó?
 1. Se encapsuló la variable interna en `self._contexto` y se introdujo un cerrojo exclusivo `self._lock = threading.Lock()`.
@@ -334,13 +334,13 @@ En [`jinxas/interfaz.py`](file:///c:/Users/Pcrz/Documents/JinxAS/jinxas/interfaz
 En `obtener_clima()`, solo se capturaba `requests.RequestException`. Si `requests.get()` lanzaba excepciones imprevistas a bajo nivel de sockets de Windows o conversiones de texto, la excepción se propagaba y abortaba el turno. Adicionalmente, el proyecto carecía de una suite formal de pruebas de contingencia para hardware y servicios externos caídos.
 
 #### ¿Cómo se solucionó?
-1. En [`jinxas/herramientas.py`](file:///c:/Users/Pcrz/Documents/JinxAS/jinxas/herramientas.py), se blindó el bloque:
+1. En [`jinxas/herramientas.py`](../../jinxas/herramientas.py), se blindó el bloque:
    ```python
    except Exception as e:
        logging.error("Error de red al consultar el clima: %s", e)
        return "Error: No se pudo obtener el clima en este momento."
    ```
-2. Se implementó la suite completa [`tests/test_resiliencia.py`](file:///c:/Users/Pcrz/Documents/JinxAS/tests/test_resiliencia.py) con **11 pruebas de inyección de fallos**:
+2. Se implementó la suite completa [`tests/test_resiliencia.py`](../../tests/test_resiliencia.py) con **11 pruebas de inyección de fallos**:
    - `test_resiliencia_ollama_caido_pensamiento_sincrono`: Simula corte total de Ollama; valida respuesta de contingencia sin crashear.
    - `test_resiliencia_ollama_caido_pensamiento_stream`: Simula corte en mitad del streaming; valida emisión de chunk de contingencia con bandera `_error=True`.
    - `test_resiliencia_microfono_no_disponible`: Simula desconexión del micrófono físico en PyAudio; valida que se capture la excepción institucional `MicrofonoNoDisponible`.
@@ -355,11 +355,207 @@ En `obtener_clima()`, solo se capturaba `requests.RequestException`. Si `request
 
 ---
 
+### H-017 (ALTO) — Desacople de Audio y Concurrencia de Panel (CWE-362)
+- **Componente:** `jinxas/interfaz.py`, `jinxas/__main__.py`, `jinxas/percepcion.py`, `jinxas/voz.py`
+- **Criterio Violado:** C2 (ISO 25010: Fiabilidad), C3 (CWE-362)
+- **Severidad:** **ALTO** | **Commit:** `dbdf313`
+
+> 💡 **En palabras simples:**  
+> Al pulsar el botón de vaciar memoria ("Flush") o repetir el audio, los sonidos podían solaparse y sonar como un eco distorsionado o el asistente recordaba lo que acababas de borrar. Ahora el reproductor de voz tiene un cerrojo exclusivo para sonar de forma limpia y ordenada.
+
+#### ¿Cuál era el problema?
+`ApiPanel.limpiar_memoria_ui` no purgaba inmediatamente la instancia compartida de contexto y el centinela continuaba escuchando ráfagas sin percatarse de la interrupción. Asimismo, `repetir_audio_ui` creaba hilos concurrentes que reproducían voz al mismo tiempo que el bucle de voz principal.
+
+#### ¿Cómo se solucionó?
+1. Se implementó purga inmediata y thread-safe de la memoria en `limpiar_memoria_ui` y `actualizar_contexto_ui`.
+2. Se introdujo el cerrojo global `_LOCK_AUDIO_PLAYBACK` en `jinxas/voz.py` para impedir solapamientos en la tarjeta de sonido.
+3. Se integró una tupla de eventos de interrupción (`evento_reinicio`, `evento_regenerar`) en `esperar_palabra_activacion`.
+4. Se validó con la suite [`tests/test_h017_panel_audio.py`](../../tests/test_h017_panel_audio.py).
+
+---
+
+### H-018 (ALTO) — Integridad Atómica del Índice FAISS y Caché RAG
+- **Componente:** `jinxas/memoria_rag.py`
+- **Criterio Violado:** C2 (ISO 25010: Fiabilidad e Integridad de Datos)
+- **Severidad:** **ALTO** | **Commit:** `7693082`
+
+> 💡 **En palabras simples:**  
+> Si la computadora se apagaba mientras guardaba el índice de búsqueda en tus notas, la base de datos quedaba arruinada. Ahora se guarda primero en un archivo provisional y solo se reemplaza cuando está 100% completo y verificado.
+
+#### ¿Cuál era el problema?
+La serialización de `indice.faiss` y `manifiesto.json` no era atómica. Ante interrupciones abruptas o excepciones, los archivos quedaban corruptos a cero bytes. Además, el cálculo del SHA-1 de cada archivo se realizaba indiscriminadamente en cada ciclo.
+
+#### ¿Cómo se solucionó?
+1. Se implementó `_escritura_atomica` utilizando archivos temporales `.tmp` y sustitución atómica mediante `os.replace`.
+2. Se incorporó evaluación perezosa de cambios usando `mtime` y `st_size` antes de calcular el hash SHA-1.
+3. Se validó que `index.ntotal` coincida exactamente con los fragmentos del manifiesto.
+4. Se implementó un bucle de reindexación ante solicitudes concurrentes con `_reindexacion_pendiente`.
+5. Se validó con la suite [`tests/test_h018_rag_integridad.py`](../../tests/test_h018_rag_integridad.py).
+
+---
+
+### H-019 (ALTO) — Presupuesto de Contexto en LLM y Truncado Defensivo
+- **Componente:** `jinxas/config.py`, `jinxas/__main__.py`, `jinxas/cerebro.py`, `jinxas/memoria_rag.py`
+- **Criterio Violado:** C1 (BASELINE.md), C2 (ISO 25010: Adecuación Funcional)
+- **Severidad:** **ALTO** | **Commit:** `dfae17e`
+
+> 💡 **En palabras simples:**  
+> El límite de lectura de notas era de solo 1500 letras, por lo que notas largas salían cortadas a la mitad. Duplicamos la ventana de pensamiento del modelo a 4096 tokens para que pueda leer 3 notas completas de Obsidian sin perder información.
+
+#### ¿Cuál era el problema?
+`MAX_CHARS_RESULTADO_TOOL = 1500` recortaba las consultas semánticas de 3 fragmentos (~2700 caracteres). Además, `LLM_OPCIONES` en `config.py` fijaba `num_ctx: 2048` y `num_predict: 160`, provocando saturación silenciosa del contexto.
+
+#### ¿Cómo se solucionó?
+1. Se elevó `MAX_CHARS_RESULTADO_TOOL = 3200` y `num_ctx = 4096, num_predict = 256` en `config.py`.
+2. `envolver_resultado_tool` añade explícitamente `[…resultado recortado por límite de tamaño]` si se supera el presupuesto.
+3. `buscar_semantica` descarta fragmentos excedentes de forma limpia sin partir textos.
+4. `cerebro.py` emite advertencias en el log al alcanzar >=90% de ocupación de contexto.
+5. Se validó con la suite [`tests/test_h019_truncados.py`](../../tests/test_h019_truncados.py).
+
+---
+
+### H-020 (MEDIO) — Falsos Positivos en la Detección de Wake Word del Centinela
+- **Componente:** `jinxas/config.py`, `jinxas/percepcion.py`
+- **Criterio Violado:** C2 (ISO 25010: Usabilidad y Fiabilidad)
+- **Severidad:** **MEDIO** | **Commit:** `cf6d476`
+
+> 💡 **En palabras simples:**  
+> El asistente despertaba por error con palabras como "think", "thanks" o "links". Se elevó la precisión necesaria de 80 a 90% y se ignoran palabras de menos de 3 letras para evitar activaciones no deseadas.
+
+#### ¿Cuál era el problema?
+El umbral de comparación difusa (`UMBRAL_WAKEWORD = 80`) causaba activaciones involuntarias con vocabulario cotidiano en inglés o español.
+
+#### ¿Cómo se solucionó?
+1. Se elevó `UMBRAL_WAKEWORD = 90` y se añadió `"jinxs"` a `VARIANTES_WAKEWORD`.
+2. `coincide_wakeword` ignora palabras de menos de 3 letras.
+3. Se validó con la suite [`tests/test_h020_wakeword.py`](../../tests/test_h020_wakeword.py) (16 casos parametrizados de falsos positivos y variantes aceptadas).
+
+---
+
+### H-021 (MEDIO) — Exposición de Privacidad del Usuario en Registros de Logging
+- **Componente:** `jinxas/percepcion.py`
+- **Criterio Violado:** C3 (OWASP LLM06 / CWE-532: Inclusión de Información Sensible en Logs)
+- **Severidad:** **MEDIO** | **Commit:** `eceda39`
+
+> 💡 **En palabras simples:**  
+> Las frases habladas por el usuario se guardaban directamente en los archivos de texto de registro en modo normal. Ahora las transcripciones exactas solo se muestran en modo de depuración (`DEBUG`), protegiendo tu privacidad en el día a día.
+
+#### ¿Cuál era el problema?
+`percepcion.py` registraba las transcripciones de voz completas a nivel `INFO` en `logs/jinx.log`.
+
+#### ¿Cómo se solucionó?
+1. Se redirigieron los mensajes con texto reconocido a nivel `DEBUG`.
+2. En nivel `INFO` solo se registran metadatos: longitud de la frase y duración en segundos.
+3. Se validó con la suite [`tests/test_h021_logs_privacidad.py`](../../tests/test_h021_logs_privacidad.py).
+
+---
+
+### H-022 (MEDIO) — Mitigación de XSS en Panel SENTINEL
+- **Componente:** `jinxas/ui/panel.html`
+- **Criterio Violado:** C3 (OWASP Top 10 / CWE-79: Cross-Site Scripting)
+- **Severidad:** **MEDIO** | **Commit:** `830d5d6`
+
+> 💡 **En palabras simples:**  
+> La ventana de la interfaz insertaba los mensajes en pantalla de una forma que podía permitir la inyección de código. Ahora los textos se tratan como letras planas (`textContent`) sin interpretar código malicioso.
+
+#### ¿Cuál era el problema?
+En `jinxas/ui/panel.html`, la función `addLog` interpolaba directamente `content` en una cadena asignada a `innerHTML`, permitiendo XSS en el motor WebView2 ante entradas que contuvieran `<script>` o `<img>`.
+
+#### ¿Cómo se solucionó?
+1. Se reescribió `addLog` creando elementos del DOM (`createElement("div")`, `createElement("span")`) y asignando el contenido textual mediante `textContent`.
+2. Se validó con la suite [`tests/test_h022_panel.py`](../../tests/test_h022_panel.py).
+
+---
+
+### H-023 (MEDIO) — Soporte de Apertura de Microsoft Edge y Chrome en Windows
+- **Componente:** `jinxas/config.py`, `jinxas/herramientas.py`
+- **Criterio Violado:** C2 (ISO 25010: Compatibilidad en Windows)
+- **Severidad:** **MEDIO** | **Commit:** `56f01bc`
+
+> 💡 **En palabras simples:**  
+> Al pedirle a Jinx "abre el navegador", decía que no lo encontraba porque Windows no tiene Edge ni Chrome en la ruta estándar del sistema. Añadimos el mecanismo oficial de Windows (ShellExecute) para abrirlos al instante.
+
+#### ¿Cuál era el problema?
+`shutil.which("msedge")` y `shutil.which("chrome")` devolvían `None` porque en Windows estos navegadores están registrados en *App Paths* del registro y no en la variable `PATH`.
+
+#### ¿Cómo se solucionó?
+1. Se incorporó el prefijo de esquema `app:` en `MAPA_APLICACIONES` (`"navegador": "app:msedge"`, `"chrome": "app:chrome"`).
+2. `herramientas.py` invoca `os.startfile(objetivo)` preservando el allowlist estricto.
+3. Se validó con la suite [`tests/test_h023_abrir_navegadores.py`](../../tests/test_h023_abrir_navegadores.py).
+
+---
+
+### H-024 (ALTO) — Sanitización de Nombres Reservados de Windows con Extensiones
+- **Componente:** `jinxas/memoria.py`
+- **Criterio Violado:** C2 (ISO 25010: Robustez), CWE-706 / CWE-22
+- **Severidad:** **ALTO** | **Commit:** `3b6d6cb`
+
+> 💡 **En palabras simples:**  
+> Nombres como `CON.md` o `nul.txt` rompían el sistema de archivos de Windows porque son nombres prohibidos por el sistema operativo. Ahora cualquier nota con ese tipo de nombre recibe automáticamente el prefijo `nota `.
+
+#### ¿Cuál era el problema?
+`_normalizar_nombre_archivo` evaluaba igualdad exacta contra `_RESERVADOS` pero no comprobaba el componente raíz previo al primer punto (`CON.md` o `nul.txt.md`).
+
+#### ¿Cómo se solucionó?
+1. Se modificó la regla: `if not base or base.split(".")[0].strip().lower() in _RESERVADOS: base = f"nota {base or 'sin titulo'}"`.
+2. Se validó con la suite [`tests/test_h024_nombres_reservados.py`](../../tests/test_h024_nombres_reservados.py) (9 casos parametrizados).
+
+---
+
+### H-025 (BAJO) — Precarga de Modelos Whisper, Saneamiento de Herramientas y Configuración JSON
+- **Componente:** `jinxas/percepcion.py`, `jinxas/__main__.py`, `jinxas/config.py`, `jinxas/ui/panel.html`, `requirements.txt`
+- **Criterio Violado:** C2 (ISO 25010: Eficiencia y Mantenibilidad), C4 (PEP 517)
+- **Severidad:** **BAJO** | **Commit:** `cab7f53`
+
+> 💡 **En palabras simples:**  
+> Whisper se precarga en segundo plano mientras abre la ventana para que el primer comando responda de inmediato, se limpiaron dependencias repetidas, se corrigió el botón de repetir audio y se configuró un archivo JSON seguro para la ciudad.
+
+#### ¿Cuál era el problema?
+El primer turno sufría una demora apreciable por carga en frío síncrona de Whisper. Los bucles de rondas podían dejar mensajes `tool_calls` colgados si se superaba el límite. `config_local.py` usaba importación dinámica. `requirements.txt` contenía `python-Levenshtein` redundante.
+
+#### ¿Cómo se solucionó?
+1. Se añadió `precargar_modelos()` con `_LOCK_MODELOS` ejecutada en un hilo daemon desde `main()`.
+2. Se sanean los `tool_calls` colgados agregando mensajes `tool` de límite alcanzado.
+3. Se sustituyó la importación dinámica por `config_local.json` leído con `json.load`.
+4. Se renombró el botón a "Repetir" en `panel.html` y se retiró `python-Levenshtein`.
+5. Se validó con la suite [`tests/test_h025_menores.py`](../../tests/test_h025_menores.py).
+
+---
+
+### H-026 (MEDIO) — CI y Entorno de Pruebas Realista (FAISS Real y Escáneres de Seguridad)
+- **Componente:** `tests/conftest.py`, `requirements-dev.txt`, `.github/workflows/ci.yml`, `tests/test_rag_faiss_real.py`
+- **Criterio Violado:** C2 (ISO 25010: Calidad de Pruebas), C3 (Seguridad)
+- **Severidad:** **MEDIO** | **Commit:** `de671da`
+
+> 💡 **En palabras simples:**  
+> Las pruebas automáticas usaban simulaciones que no permitían probar la base de datos vectorial real. Ahora la suite de pruebas y GitHub Actions utilizan FAISS real e incluyen revisiones continuas de seguridad con Bandit y Pip-Audit.
+
+#### ¿Cuál era el problema?
+`conftest.py` mockeaba incondicionalmente `faiss`, `thefuzz` y `psutil`, impidiendo verificar el comportamiento real del índice en CI. El flujo de GitHub Actions carecía de pasos de análisis estático de vulnerabilidades.
+
+#### ¿Cómo se solucionó?
+1. Se implementó `_mock_si_falta` para importar las librerías reales si están presentes en el entorno.
+2. Se añadieron `faiss-cpu` y `thefuzz` a `requirements-dev.txt`.
+3. Se creó la suite [`tests/test_rag_faiss_real.py`](../../tests/test_rag_faiss_real.py) para probar escritura atómica, recarga y eliminación con FAISS real.
+4. Se agregaron pasos de `pip-audit` y `bandit` con `continue-on-error: true` en `.github/workflows/ci.yml`.
+
+---
+
 ## 3. Resumen Cronológico de Commits en `main`
 
 La rama principal [`main`](https://github.com/DAHL13/JinxAS/tree/main) contiene el historial completo y detallado de cada remediación:
 
 ```text
+cab7f53 fix(H-025): precarga de whisper, saneamiento de tool_calls, config_local json y limpieza de dependencias
+56f01bc fix(H-023): resolucion nativa de msedge y chrome via app paths con os.startfile
+830d5d6 fix(H-022): mitigar xss en panel usando dom nodes y textcontent en addlog
+eceda39 fix(H-021): proteger privacidad del usuario en logs moviendo transcripciones a debug
+cf6d476 fix(H-020): mitigar falsos positivos de wakeword subiendo umbral a 90 y agregando jinxs
+de671da test(H-026): CI y conftest con faiss real, thefuzz y escaneres de seguridad
+3b6d6cb fix(H-024): prefijar nombres de dispositivos reservados de windows con extensiones
+dfae17e fix(H-019): presupuesto de contexto en llm y truncado defensivo de tools
+7693082 fix(H-018): escritura atomica de indice faiss, hash lazy y validacion de ntotal
+dbdf313 fix(H-017): desacople de audio, flush inmediato y mutex de reproduccion
 2b85632 docs: actualizar hash de cierre en informe final
 d3b8cc2 docs: registrar remediación completa, endurecimiento y cierre al 100% de hallazgos
 aeb52e7 fix: sincronizar ApiPanel y contexto con lock para mitigar race condition (CWE-362)
@@ -389,11 +585,11 @@ c26545f fix(H-006): usar parámetros de escuchar_y_transcribir en lugar de confi
 
 Para reproducir localmente las validaciones de auditoría en cualquier momento:
 
-### 1. Ejecución de la suite completa de pruebas (218 tests)
+### 1. Ejecución de la suite completa de pruebas (281 tests)
 ```powershell
 python -m pytest -q -m "not integration"
 ```
-*Resultado esperado:* `218 passed in ~1.3s` (sin warnings y con 100% de éxito).
+*Resultado esperado:* `281 passed in ~1.4s` (sin warnings y con 100% de éxito).
 
 ### 2. Validación de estilo y calidad de código
 ```powershell
@@ -405,10 +601,11 @@ ruff check .
 ```powershell
 python -m build --wheel
 ```
-*Resultado esperado:* Generación de `dist/jinxas-0.5.0-py3-none-any.whl` conteniendo `jinxas/ui/panel.html`.
+*Resultado esperado:* Generación de `dist/jinxas-0.5.1-py3-none-any.whl` conteniendo `jinxas/ui/panel.html`.
 
 ---
 
 ## 5. Dictamen y Conclusión del Auditor
 
-El proyecto **JinxAS** ha alcanzado el nivel de madurez, robustez y seguridad exigido para una entrega profesional de software multiplataforma. La separación de responsabilidades, la protección contra inyecciones de datos, el aislamiento de hardware mediante mocks y la estabilidad del centinela de voz sitúan a esta versión en un estándar sobresaliente de ingeniería de software local.
+El proyecto **JinxAS** ha alcanzado el nivel de madurez, robustez y seguridad exigido para una entrega profesional de software multiplataforma. La separación de responsabilidades, la protección contra inyecciones de datos, el aislamiento de hardware mediante mocks y la estabilidad del centinela de voz sitúan a esta versión v0.5.1 en un estándar sobresaliente de ingeniería de software local.
+
