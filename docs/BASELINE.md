@@ -57,7 +57,7 @@ La siguiente tabla resume el impacto arquitectónico y las mejoras medidas o pro
 | Etapa / Optimización | Línea Base (Pre-F2) | Post-F1/F2 (Objetivo / Estimado) | Mediana Real Validada | Mecanismo e Impacto |
 |---|:---:|:---:|:---:|---|
 | **STT recurrente** (F1-04 / F1-05) | 9,185 ms | 2,800 – 3,500 ms | *[Pendiente sesión de voz en vivo]* | Caché en RAM de `_MODELO_WHISPER_COMANDOS` y eliminación de `adjust_for_ambient_noise` en comandos. Ahorro de ~5.5 s. |
-| **LLM en conversación** (F2-01) | 18,393 ms | 12,000 – 15,000 ms | *[Pendiente sesión de voz en vivo]* | `LLM_KEEP_ALIVE = "30m"` evita evicciones de RAM. Opciones fijadas: `num_ctx: 2048`, `num_predict: 160`. |
+| **LLM en conversación** (F2-01) | 18,393 ms | 12,000 – 15,000 ms | *[Pendiente sesión de voz en vivo]* | `LLM_KEEP_ALIVE = "30m"` evita evicciones de RAM. Opciones fijadas: `num_ctx: 4096`, `num_predict: 256`. |
 | **Atajos deterministas** (F2-03) | 18,393 ms | **0 ms** (bypass LLM) | **0 ms** ✅ | Comandos como *"abre la calculadora"* o *"cómo está la RAM"* resueltos directamente por [atajos.py](file:///c:/Users/Pcrz/Documents/JinxAS/atajos.py). |
 | **TTFA (Time to First Audio)** (F2-02 / F2-06) | ~34,511 ms | **1,500 – 2,500 ms** (post-STT) | *[Pendiente sesión de voz en vivo]* | Streaming por frases (`FIN_DE_FRASE` + productor/consumidor). El primer audio suena con la primera frase emitida por Ollama. |
 | **Arranque en frío global** (F2-07) | 11.3 s | **< 1.8 s** | **~1.5 s** ✅ | Lazy imports en [memoria_rag.py](file:///c:/Users/Pcrz/Documents/JinxAS/memoria_rag.py) e indexación FAISS en hilo daemon en segundo plano (`_lock_rag`). |

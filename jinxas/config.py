@@ -57,10 +57,11 @@ CIUDAD_POR_DEFECTO = CIUDAD
 URL_CLIMA = f"https://wttr.in/{quote(CIUDAD)}?format=%C+%t&lang=es"
 
 MAX_RONDAS_TOOLS = 3
+MAX_CHARS_RESULTADO_TOOL = 3200
 
 ATAJOS = True
 STREAMING = False          # True → TTS por frases con menor TTFA (F2-02)
-LLM_OPCIONES = {"temperature": 0.3, "num_ctx": 2048, "num_predict": 160}
+LLM_OPCIONES = {"temperature": 0.3, "num_ctx": 4096, "num_predict": 256}
 LLM_KEEP_ALIVE = "30m"
 
 PROMPT_INICIAL_WHISPER = (

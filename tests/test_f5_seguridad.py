@@ -16,6 +16,7 @@ for _m in (
 ):
     sys.modules.setdefault(_m, MagicMock())
 
+from jinxas import config
 from jinxas.__main__ import envolver_resultado_tool, confirmar_accion
 
 
@@ -38,18 +39,22 @@ class TestEnvolverResultadoTool:
         assert "Soleado +24" in r
 
     def test_truncado_exacto_a_1500(self):
-        """Textos de mas de 1500 caracteres deben truncarse exactamente a 1500 en el cuerpo."""
-        texto_largo = "X" * 2000
+        """Textos que superan el límite deben truncarse y añadir sufijo de recorte."""
+        limite = config.MAX_CHARS_RESULTADO_TOOL
+        texto_largo = "X" * (limite + 500)
         r = envolver_resultado_tool("consultar_boveda", texto_largo)
         cuerpo = r.split("\n", 1)[1]
-        assert len(cuerpo) == 1500, f"Esperado 1500 chars, obtenido {len(cuerpo)}"
+        assert cuerpo.startswith("X" * limite)
+        assert cuerpo.endswith("[…resultado recortado]")
 
     def test_truncado_exactamente_1500(self):
-        """Textos de exactamente 1500 caracteres no se deben truncar."""
-        texto_exacto = "Y" * 1500
+        """Textos dentro del límite no se deben truncar ni añadir sufijo."""
+        limite = config.MAX_CHARS_RESULTADO_TOOL
+        texto_exacto = "Y" * limite
         r = envolver_resultado_tool("guardar_nota", texto_exacto)
         cuerpo = r.split("\n", 1)[1]
-        assert len(cuerpo) == 1500
+        assert cuerpo == texto_exacto
+        assert "[…resultado recortado]" not in cuerpo
 
     def test_texto_vacio(self):
         """String vacio debe producir cuerpo vacio tras el prefijo."""
@@ -72,10 +77,11 @@ class TestEnvolverResultadoTool:
         assert "herramienta_a" not in r2
 
     def test_max_chars_personalizable(self):
-        """max_chars personalizado debe respetar el limite indicado."""
+        """max_chars personalizado debe respetar el limite indicado y añadir sufijo si trunca."""
         r = envolver_resultado_tool("x", "A" * 200, max_chars=50)
         cuerpo = r.split("\n", 1)[1]
-        assert len(cuerpo) == 50
+        assert cuerpo.startswith("A" * 50)
+        assert "[…resultado recortado]" in cuerpo
 
 
 # =============================================================================

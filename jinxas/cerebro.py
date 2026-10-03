@@ -60,6 +60,13 @@ def procesar_pensamiento(mensajes: list, modelo: str = MODELO_LLM, usar_tools: b
 
         tok_sec = round(eval_count / (eval_duration / 1e9), 1) if eval_duration > 0 else 0.0
         logging.info("Ollama TPS: %.2f | Contexto usado: %s tokens", tok_sec, prompt_eval)
+        num_ctx = config.LLM_OPCIONES.get("num_ctx", 4096)
+        if prompt_eval >= 0.9 * num_ctx:
+            logging.warning(
+                "Contexto de LLM al límite: prompt_eval_count=%s tokens (>= 90%% de num_ctx=%s)",
+                prompt_eval,
+                num_ctx,
+            )
         resultado = _mensaje_a_dict(msg)
         resultado["tok_sec"] = tok_sec
         return resultado
@@ -104,9 +111,19 @@ def procesar_pensamiento_stream(mensajes: list, modelo: str = MODELO_LLM, usar_t
             if isinstance(chunk, dict):
                 ec = chunk.get("eval_count", 0)
                 ed = chunk.get("eval_duration", 0)
+                pec = chunk.get("prompt_eval_count", 0)
             else:
                 ec = getattr(chunk, "eval_count", 0) or 0
                 ed = getattr(chunk, "eval_duration", 0) or 0
+                pec = getattr(chunk, "prompt_eval_count", 0) or 0
+            if pec:
+                num_ctx = config.LLM_OPCIONES.get("num_ctx", 4096)
+                if pec >= 0.9 * num_ctx:
+                    logging.warning(
+                        "Contexto de LLM al límite: prompt_eval_count=%s tokens (>= 90%% de num_ctx=%s)",
+                        pec,
+                        num_ctx,
+                    )
             if ed and ed > 0:
                 tps = round(ec / (ed / 1e9), 1)
                 if isinstance(chunk, dict):

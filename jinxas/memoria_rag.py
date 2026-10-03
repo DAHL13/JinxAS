@@ -574,7 +574,11 @@ def buscar_semantica(consulta: str, top_k: int = 3) -> str:
 
         mapa_id = {frag["_id"]: frag for frag in fragmentos_local if "_id" in frag}
 
+        presupuesto = getattr(config, "MAX_CHARS_RESULTADO_TOOL", 3200) - 200
         resultados = []
+        longitud_acumulada = 0
+        sep = "\n\n---\n\n"
+
         for score, idx in zip(scores[0], indices[0]):
             if idx < 0:
                 continue
@@ -590,13 +594,17 @@ def buscar_semantica(consulta: str, top_k: int = 3) -> str:
             frag_archivo = frag.get("archivo", "nota.md")
             frag_texto = frag.get("texto", "")
             logging.info("[RAG] Resultado score=%.4f archivo=%s", score, frag_archivo)
-            resultados.append(
-                f"[Resultado {len(resultados)+1} — {frag_archivo}]\n{frag_texto}"
-            )
+            item = f"[Resultado {len(resultados)+1} — {frag_archivo}]\n{frag_texto}"
+            tam_extra = len(item) + (len(sep) if resultados else 0)
+            if longitud_acumulada + tam_extra <= presupuesto:
+                resultados.append(item)
+                longitud_acumulada += tam_extra
+            else:
+                logging.info("[RAG] Resultado descartado por límite de presupuesto de caracteres (%d chars).", tam_extra)
 
         if not resultados:
             return "No se encontró información relevante en las notas."
-        return "\n\n---\n\n".join(resultados)
+        return sep.join(resultados)
 
     except Exception as e:
         logging.error("[RAG] Error durante la búsqueda: %s", e)
