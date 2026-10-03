@@ -1,12 +1,16 @@
+import asyncio
 import logging
 import os
+import queue
 import re
 import sys
 import tempfile
+import threading
 import time
-import asyncio
 import edge_tts
 from jinxas.config import VOZ_TTS
+
+_LOCK_AUDIO = threading.RLock()
 
 _URL = re.compile(r"https?://\S+")
 _EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF]")
@@ -68,31 +72,33 @@ def reproducir_voz(texto: str, voz: str = VOZ_TTS, on_start: callable = None):
                 winsound.MessageBeep()
             return
 
-        # Inicializar mixer si no está activo
-        if not pygame.mixer.get_init():
-            pygame.mixer.init()
+        with _LOCK_AUDIO:
+            # Inicializar mixer si no está activo
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
 
-        # Cargar y reproducir el archivo de audio
-        pygame.mixer.music.load(archivo_temporal)
-        # Invocar el callback de inicio justo antes del primer sample de audio
-        if callable(on_start):
-            on_start()
-        pygame.mixer.music.play()
+            # Cargar y reproducir el archivo de audio
+            pygame.mixer.music.load(archivo_temporal)
+            # Invocar el callback de inicio justo antes del primer sample de audio
+            if callable(on_start):
+                on_start()
+            pygame.mixer.music.play()
 
-        # Bucle de espera activo que bloquea el hilo hasta terminar la reproducción
-        while pygame.mixer.music.get_busy():
-            time.sleep(0.1)
+            # Bucle de espera activo que bloquea el hilo hasta terminar la reproducción
+            while pygame.mixer.music.get_busy():
+                time.sleep(0.1)
 
-        # Descargar y liberar el archivo de audio
-        pygame.mixer.music.unload()
+            # Descargar y liberar el archivo de audio
+            pygame.mixer.music.unload()
 
     except Exception as e:
         logging.error("Error en módulo de voz TTS: %s", e)
     finally:
-        try:
-            pygame.mixer.music.unload()
-        except Exception:
-            pass
+        with _LOCK_AUDIO:
+            try:
+                pygame.mixer.music.unload()
+            except Exception:
+                pass
         # Eliminar archivo temporal dinámico del sistema
         if os.path.exists(archivo_temporal):
             try:
@@ -104,8 +110,6 @@ def reproducir_voz(texto: str, voz: str = VOZ_TTS, on_start: callable = None):
 # ---------------------------------------------------------------------------
 # F2-02: Streaming TTS por frases
 # ---------------------------------------------------------------------------
-import queue
-import threading
 
 # Detecta el final de una frase: cualquier contenido terminado en . ! ? … seguido de espacio
 FIN_DE_FRASE = re.compile(r"(.+?[.!?…])\s")
@@ -234,24 +238,27 @@ def reproducir_frases_streaming(
         if ruta is None:
             break
         try:
-            if not pygame.mixer.get_init():
-                pygame.mixer.init()
-            pygame.mixer.music.load(ruta)
-            # Disparar on_start solo antes del PRIMER sample de audio
-            if primer_audio:
-                if callable(on_start):
-                    on_start()
-                primer_audio = False
-            pygame.mixer.music.play()
-            while pygame.mixer.music.get_busy():
-                time.sleep(0.05)
+            with _LOCK_AUDIO:
+                if not pygame.mixer.get_init():
+                    pygame.mixer.init()
+                pygame.mixer.music.load(ruta)
+                # Disparar on_start solo antes del PRIMER sample de audio
+                if primer_audio:
+                    if callable(on_start):
+                        on_start()
+                    primer_audio = False
+                pygame.mixer.music.play()
+                while pygame.mixer.music.get_busy():
+                    time.sleep(0.05)
+                pygame.mixer.music.unload()
         except Exception as e:
             logging.error("[STR] Error reproduciendo frase: %s", e)
         finally:
-            try:
-                pygame.mixer.music.unload()
-            except Exception:
-                pass
+            with _LOCK_AUDIO:
+                try:
+                    pygame.mixer.music.unload()
+                except Exception:
+                    pass
             try:
                 os.remove(ruta)
             except Exception:

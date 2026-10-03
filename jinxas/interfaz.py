@@ -60,21 +60,9 @@ class ApiPanel:
     def repetir_audio_ui(self) -> None:
         try:
             self.regenerar()
-            ultimo_texto = ""
-            with self._lock:
-                if self._contexto:
-                    for msg in reversed(self._contexto):
-                        if msg.get("role") == "assistant":
-                            ultimo_texto = (msg.get("content") or "").strip()
-                            break
-            if ultimo_texto:
-                from jinxas.voz import reproducir_voz
-                logging.info("[ApiPanel] Repitiendo último audio desde el panel UI.")
-                threading.Thread(target=reproducir_voz, args=(ultimo_texto,), daemon=True).start()
-            else:
-                logging.info("[ApiPanel] Repetir audio: no hay respuesta previa en el contexto.")
+            logging.info("[ApiPanel] Repetición de audio solicitada desde el panel UI.")
         except Exception as exc:
-            logging.error("[ApiPanel] Error al repetir audio: %s", exc)
+            logging.error("[ApiPanel] Error al solicitar repetición de audio: %s", exc)
 
 
 # Alias para retrocompatibilidad

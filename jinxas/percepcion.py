@@ -97,11 +97,17 @@ def esperar_palabra_activacion(
     variaciones: list = None,
     evento_apagar=None,
     panel=None,
+    eventos_interrupcion: tuple = (),
 ) -> bool:
     """
     Modo Centinela: Escucha pasivamente en segundo plano con Whisper (modelo tiny.en)
     hasta detectar la palabra clave de activación 'Jinx' o sus variantes fonéticas.
     """
+    def _interrumpido() -> bool:
+        if evento_apagar and evento_apagar.is_set():
+            return True
+        return any(e is not None and e.is_set() for e in eventos_interrupcion)
+
     global _MODELO_CENTINELA
     if _MODELO_CENTINELA is None:
         logging.info("Cargando modelo centinela de Whisper (%s)...", config.MODELO_WAKEWORD)
@@ -126,14 +132,14 @@ def esperar_palabra_activacion(
                 panel.actualizar_satelite(1, 1, "Centinela Activo", "Esperando 'Jinx'...")
                 panel.actualizar_satelite(1, 2, "Umbral Energía", f"{recognizer.energy_threshold:.2f} SNR")
 
-            while not (evento_apagar and evento_apagar.is_set()):
+            while not _interrumpido():
                 try:
                     # Captura ráfagas cortas con VAD nativo para esperar en silencio sin saturar CPU
                     audio = recognizer.listen(source, timeout=1, phrase_time_limit=3)
                 except sr.WaitTimeoutError:
                     continue
 
-                if evento_apagar and evento_apagar.is_set():
+                if _interrumpido():
                     return False
 
                 try:

@@ -398,7 +398,12 @@ def bucle_voz_secundario(
                 panel.actualizar_satelite(3, 2, "Herramientas", "Ninguna activa")
             logging.info("Esperando palabra de activación 'Jinx'...")
             try:
-                activado = esperar_palabra_activacion(PALABRA_ACTIVACION, evento_apagar=detener, panel=panel)
+                activado = esperar_palabra_activacion(
+                    PALABRA_ACTIVACION,
+                    evento_apagar=detener,
+                    panel=panel,
+                    eventos_interrupcion=(evento_reinicio, evento_regenerar),
+                )
             except MicrofonoNoDisponible as e:
                 fallos_micro += 1
                 logging.error("[MICRO] Fallo de micrófono (#%d): %s", fallos_micro, e)
