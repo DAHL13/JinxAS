@@ -22,7 +22,7 @@ def _normalizar_nombre_archivo(titulo: str) -> str:
     """
     base = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", titulo).strip().rstrip(". ")
     base = re.sub(r"\s+", " ", base)[:TITULO_NOTA_MAX].rstrip(". ")
-    if not base or base.lower() in _RESERVADOS:
+    if not base or base.split(".")[0].strip().lower() in _RESERVADOS:
         base = f"nota {base or 'sin titulo'}"
     return base if base.lower().endswith(".md") else base + ".md"
 
