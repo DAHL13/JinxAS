@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import sys
@@ -22,6 +23,8 @@ TIEMPO_MAXIMO_ESCUCHA = 8
 PHRASE_TIME_LIMIT = 8
 VOZ_TTS = "es-MX-DaliaNeural"
 RUTA_VAULT = os.environ.get("JINX_VAULT") or os.path.join(_BASE_DIR, "Boveda_Obsidian")
+_hash_vault = hashlib.sha1(RUTA_VAULT.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
+RUTA_CACHE = os.environ.get("JINX_CACHE") or os.path.join(_BASE_DIR, ".jinx_cache", _hash_vault)
 TITULO_NOTA_MAX = 80
 UMBRAL_SIMILITUD_RAG = 0.35
 UMBRAL_DISTANCIA_RAG = UMBRAL_SIMILITUD_RAG  # alias residual para compatibilidad

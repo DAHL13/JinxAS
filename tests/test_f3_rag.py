@@ -110,13 +110,32 @@ def env_rag(tmp_path, monkeypatch):
     faiss_mod.IndexFlatIP = MagicMock(side_effect=make_index)
     faiss_mod.IndexFlatL2 = MagicMock(side_effect=make_index)
     faiss_mod.IndexIDMap2 = MagicMock(side_effect=lambda inner: inner)
-    faiss_mod.write_index = MagicMock()  # no escribe en disco (aislado)
-    faiss_mod.read_index = MagicMock(side_effect=Exception("no cache"))  # fuerza reconstruccion
+
+    def fake_write_index(idx, path):
+        with open(path, "wb") as f:
+            f.write(b"mock_faiss_data")
+
+    def fake_read_index(path):
+        idx = FaissIndexMock()
+        ruta_man = os.path.join(os.path.dirname(path), "manifiesto.json")
+        if os.path.exists(ruta_man):
+            try:
+                with open(ruta_man, "r", encoding="utf-8") as f:
+                    m = json.load(f)
+                esperados = sum(len(e.get("ids", [])) for k, e in m.items() if isinstance(e, dict))
+                idx.ntotal = esperados
+            except Exception:
+                pass
+        return idx
+
+    faiss_mod.write_index = MagicMock(side_effect=fake_write_index)
+    faiss_mod.read_index = MagicMock(side_effect=fake_read_index)
 
     # ---- Recargar config con el vault temporal ---------------------------
     import config
     importlib.reload(config)
     monkeypatch.setattr(config, "RUTA_VAULT", str(vault))
+    monkeypatch.setattr(config, "RUTA_CACHE", str(vault / ".jinx_cache"))
     monkeypatch.setattr(config, "MAX_CHARS_CHUNK", 900)
     monkeypatch.setattr(config, "UMBRAL_SIMILITUD_RAG", 0.35)
 
@@ -304,6 +323,7 @@ class TestIndexacionIncremental:
             }
         with open(str(cache_dir / "manifiesto.json"), "w", encoding="utf-8") as f:
             json.dump(manifiesto, f)
+        (cache_dir / "indice.faiss").write_bytes(b"mock_faiss_data")
 
         # Resetear contadores
         self._resetear_estado(env_rag)
@@ -360,6 +380,7 @@ class TestIndexacionIncremental:
         }
         with open(str(cache_dir / "manifiesto.json"), "w", encoding="utf-8") as f:
             json.dump(manifiesto, f)
+        (cache_dir / "indice.faiss").write_bytes(b"mock_faiss_data")
 
         # Resetear estado
         self._resetear_estado(env_rag)
@@ -414,6 +435,7 @@ class TestIndexacionIncremental:
 
         with open(str(cache_dir / "manifiesto.json"), "w", encoding="utf-8") as f:
             json.dump(manifiesto, f)
+        (cache_dir / "indice.faiss").write_bytes(b"mock_faiss_data")
 
         # Borrar nota_borrar.md del disco
         os.remove(str(nota_borrar))

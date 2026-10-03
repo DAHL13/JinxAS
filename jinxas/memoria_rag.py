@@ -28,6 +28,7 @@ from jinxas import config
 _lock_rag = threading.Lock()
 _lock_construir = threading.Lock()
 _indexando: bool = False
+_reindex_pendiente: bool = False
 
 # ---------------------------------------------------------------------------
 # Carga perezosa de modelo de embeddings
@@ -61,7 +62,10 @@ _CACHE_DIR_NAME = ".jinx_cache"
 
 def _cache_dir() -> str:
     """Devuelve la ruta absoluta de la carpeta de caché."""
-    return os.path.join(config.RUTA_VAULT, _CACHE_DIR_NAME)
+    if hasattr(config, "RUTA_CACHE") and config.RUTA_CACHE:
+        return config.RUTA_CACHE
+    hash_v = hashlib.sha1(config.RUTA_VAULT.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
+    return os.path.join(config._BASE_DIR, _CACHE_DIR_NAME, hash_v)
 
 
 def _ruta_indice() -> str:
@@ -74,6 +78,16 @@ def _ruta_manifiesto() -> str:
 
 def _asegurar_cache_dir() -> None:
     os.makedirs(_cache_dir(), exist_ok=True)
+
+
+def _escritura_atomica(ruta: str, escribir) -> None:
+    """Escribe a un archivo temporal y reemplaza atómicamente la ruta destino."""
+    tmp = ruta + ".tmp"
+    escribir(tmp)
+    if not os.path.exists(tmp):
+        with open(tmp, "wb") as f:
+            f.write(b"")
+    os.replace(tmp, ruta)
 
 
 # ---------------------------------------------------------------------------
@@ -203,12 +217,18 @@ def _cargar_manifiesto() -> dict:
 
 def _guardar_manifiesto(manifiesto: dict) -> None:
     _asegurar_cache_dir()
-    with open(_ruta_manifiesto(), "w", encoding="utf-8") as f:
-        json.dump(manifiesto, f, ensure_ascii=False, indent=2)
+
+    def _escribir_json(tmp):
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(manifiesto, f, ensure_ascii=False, indent=2)
+
+    _escritura_atomica(_ruta_manifiesto(), _escribir_json)
 
 
 def _manifiesto_es_compatible(manifiesto: dict) -> bool:
     """Devuelve False si el modelo o max_chars_chunk cambió → reconstruir todo."""
+    if not manifiesto:
+        return True
     return (
         manifiesto.get("modelo") == config.MODELO_EMBEDDINGS
         and manifiesto.get("max_chars_chunk") == getattr(config, "MAX_CHARS_CHUNK", 900)
@@ -225,210 +245,262 @@ def construir_indice(panel=None) -> int:
     FAISS IndexIDMap2(IndexFlatIP) con similitud coseno.
 
     Caché incremental (.jinx_cache/):
-    - Archivos sin cambios → no se re-vectorizan.
+    - Archivos sin cambios → no se re-vectorizan (detección perezosa mtime + size).
     - Archivos nuevos/modificados → sus IDs anteriores se eliminan y se re-indexan.
     - Archivos eliminados → sus IDs se eliminan del índice.
 
     Thread-safe: usa _lock_construir para serializar ejecuciones y _lock_rag para la escritura atómica final.
     """
-    global _indice, _fragmentos, _origenes, _indexando
+    global _indice, _fragmentos, _origenes, _indexando, _reindex_pendiente
 
     import faiss  # import perezoso
 
     if not _lock_construir.acquire(blocking=False):
-        logging.info("[RAG] Construcción de índice ya en progreso. Omitiendo llamada concurrente.")
+        _reindex_pendiente = True
+        logging.info("[RAG] Construcción de índice ya en progreso. Marcando reindexación pendiente.")
         return len(_fragmentos)
 
-    _indexando = True
+    total_chunks = len(_fragmentos)
     try:
-        modelo = _obtener_modelo()
-        dim = (
-            modelo.get_embedding_dimension()
-            if hasattr(modelo, "get_embedding_dimension")
-            else modelo.get_sentence_embedding_dimension()
-        )
-
-        ruta_vault = config.RUTA_VAULT
-        max_chars = getattr(config, "MAX_CHARS_CHUNK", 900)
-
-        logging.info("[RAG] Iniciando construcción del índice sobre: %s", ruta_vault)
-
-        if not os.path.isdir(ruta_vault):
-            logging.warning("[RAG] La bóveda no existe en '%s'. Índice vacío.", ruta_vault)
-            if panel:
-                panel.actualizar_satelite(3, 3, "Memoria RAG", "Bóveda no encontrada")
-            return 0
-
-        # ---- Cargar manifiesto y decidir si reconstruir desde cero --------
-        manifiesto = _cargar_manifiesto()
-        if not _manifiesto_es_compatible(manifiesto):
-            logging.info("[RAG] Configuración cambió. Reconstruyendo índice desde cero.")
-            manifiesto = {}
-
-        # ---- Cargar índice existente o crear uno nuevo --------------------
-        ruta_idx = _ruta_indice()
-        if manifiesto and os.path.exists(ruta_idx):
+        while True:
+            _reindex_pendiente = False
+            _indexando = True
             try:
-                nuevo_indice = faiss.read_index(ruta_idx)
-                logging.info("[RAG] Índice cargado desde caché.")
-            except Exception as e:
-                logging.warning("[RAG] No se pudo leer el índice en caché: %s. Reindexando.", e)
-                nuevo_indice = faiss.IndexIDMap2(faiss.IndexFlatIP(dim))
-                manifiesto = {}
-        else:
-            nuevo_indice = faiss.IndexIDMap2(faiss.IndexFlatIP(dim))
+                modelo = _obtener_modelo()
+                dim = (
+                    modelo.get_embedding_dimension()
+                    if hasattr(modelo, "get_embedding_dimension")
+                    else modelo.get_sentence_embedding_dimension()
+                )
 
-        # next_id global para asignar IDs únicos a cada chunk
-        next_id: int = manifiesto.get("next_id", 0)
+                ruta_vault = config.RUTA_VAULT
+                max_chars = getattr(config, "MAX_CHARS_CHUNK", 900)
 
-        # Mapa ruta_relativa → metadatos del manifiesto
-        entradas: dict = {k: v for k, v in manifiesto.items()
-                          if k not in ("modelo", "max_chars_chunk", "next_id")}
+                logging.info("[RAG] Iniciando construcción del índice sobre: %s", ruta_vault)
 
-        # ---- Escanear bóveda actual ---------------------------------------
-        archivos_actuales: dict = {}  # ruta_relativa → ruta_completa
-        for raiz, dirs, archivos in os.walk(ruta_vault):
-            dirs[:] = [d for d in dirs if not d.startswith(".")]
-            for nombre in archivos:
-                if nombre.lower().endswith(".md") and not nombre.startswith("."):
-                    ruta_completa = os.path.join(raiz, nombre)
-                    ruta_rel = os.path.relpath(ruta_completa, ruta_vault)
-                    archivos_actuales[ruta_rel] = ruta_completa
+                if not os.path.isdir(ruta_vault):
+                    logging.warning("[RAG] La bóveda no existe en '%s'. Índice vacío.", ruta_vault)
+                    if panel:
+                        panel.actualizar_satelite(3, 3, "Memoria RAG", "Bóveda no encontrada")
+                    total_chunks = 0
+                    break
 
-        # ---- Detectar archivos eliminados ---------------------------------
-        eliminados = [r for r in entradas if r not in archivos_actuales]
-        for ruta_rel in eliminados:
-            ids_viejos = entradas[ruta_rel].get("ids", [])
-            if ids_viejos:
-                try:
-                    nuevo_indice.remove_ids(np.array(ids_viejos, dtype=np.int64))
-                except Exception as e:
-                    logging.warning("[RAG] No se pudieron eliminar IDs de '%s': %s", ruta_rel, e)
-            del entradas[ruta_rel]
-            logging.info("[RAG] Nota eliminada del índice: %s", ruta_rel)
+                # ---- Cargar manifiesto y decidir si reconstruir desde cero --------
+                manifiesto = _cargar_manifiesto()
+                if not _manifiesto_es_compatible(manifiesto):
+                    logging.info("[RAG] Configuración cambió. Reconstruyendo índice desde cero.")
+                    manifiesto = {}
 
-        # ---- Construir mapa ID → fragmento reutilizando entradas sin cambio
-        # (reconstruir _fragmentos desde el manifiesto)
-        nuevos_fragmentos: list = []
-        for ruta_rel, meta in entradas.items():
-            for chunk_id, chunk_txt in zip(meta.get("ids", []), meta.get("chunks", [])):
-                nuevos_fragmentos.append({"archivo": os.path.basename(ruta_rel), "texto": chunk_txt, "_id": chunk_id})
+                # Mapa ruta_relativa → metadatos del manifiesto
+                entradas: dict = {k: v for k, v in manifiesto.items()
+                                  if k not in ("modelo", "max_chars_chunk", "next_id")}
 
-        # ---- Procesar archivos nuevos o modificados -----------------------
-        n_nuevos = 0
-        for ruta_rel, ruta_completa in archivos_actuales.items():
-            try:
-                mtime_actual = os.path.getmtime(ruta_completa)
-                sha1_actual = _sha1_archivo(ruta_completa)
-            except Exception as e:
-                logging.warning("[RAG] No se pudo stat '%s': %s", ruta_completa, e)
-                continue
+                # ---- Cargar índice existente o crear uno nuevo --------------------
+                ruta_idx = _ruta_indice()
+                descartar_cache = False
+                if manifiesto:
+                    if not os.path.exists(ruta_idx):
+                        logging.warning("[RAG] Manifiesto no vacío pero falta el archivo del índice. Descartando caché.")
+                        descartar_cache = True
+                    else:
+                        try:
+                            nuevo_indice = faiss.read_index(ruta_idx)
+                            esperados = sum(len(e.get("ids", [])) for e in entradas.values())
+                            ntotal = getattr(nuevo_indice, "ntotal", None)
+                            if ntotal != esperados:
+                                logging.warning(
+                                    "[RAG] ntotal (%s) != IDs esperados (%d). Descartando caché.",
+                                    ntotal, esperados
+                                )
+                                descartar_cache = True
+                            else:
+                                logging.info("[RAG] Índice cargado desde caché.")
+                        except Exception as e:
+                            logging.warning("[RAG] No se pudo leer el índice en caché: %s. Reindexando.", e)
+                            descartar_cache = True
 
-            entrada_previa = entradas.get(ruta_rel)
-            sin_cambio = (
-                entrada_previa is not None
-                and abs(entrada_previa.get("mtime", 0) - mtime_actual) < 1e-3
-                and entrada_previa.get("sha1") == sha1_actual
-            )
-            if sin_cambio:
-                continue  # No re-vectorizar
+                if descartar_cache or not manifiesto:
+                    nuevo_indice = faiss.IndexIDMap2(faiss.IndexFlatIP(dim))
+                    manifiesto = {}
+                    entradas = {}
+                    next_id = 0
+                else:
+                    # next_id global para asignar IDs únicos a cada chunk
+                    next_id = manifiesto.get("next_id", 0)
 
-            # Eliminar IDs previos si los había
-            if entrada_previa:
-                ids_viejos = entrada_previa.get("ids", [])
-                if ids_viejos:
+                # ---- Escanear bóveda actual ---------------------------------------
+                archivos_actuales: dict = {}  # ruta_relativa → ruta_completa
+                for raiz, dirs, archivos in os.walk(ruta_vault):
+                    dirs[:] = [d for d in dirs if not d.startswith(".")]
+                    for nombre in archivos:
+                        if nombre.lower().endswith(".md") and not nombre.startswith("."):
+                            ruta_completa = os.path.join(raiz, nombre)
+                            ruta_rel = os.path.relpath(ruta_completa, ruta_vault)
+                            archivos_actuales[ruta_rel] = ruta_completa
+
+                # ---- Detectar archivos eliminados ---------------------------------
+                eliminados = [r for r in entradas if r not in archivos_actuales]
+                for ruta_rel in eliminados:
+                    ids_viejos = entradas[ruta_rel].get("ids", [])
+                    if ids_viejos:
+                        try:
+                            nuevo_indice.remove_ids(np.array(ids_viejos, dtype=np.int64))
+                        except Exception as e:
+                            logging.warning("[RAG] No se pudieron eliminar IDs de '%s': %s", ruta_rel, e)
+                    del entradas[ruta_rel]
+                    logging.info("[RAG] Nota eliminada del índice: %s", ruta_rel)
+
+                # ---- Construir mapa ID → fragmento reutilizando entradas sin cambio
+                nuevos_fragmentos: list = []
+                for ruta_rel, meta in entradas.items():
+                    for chunk_id, chunk_txt in zip(meta.get("ids", []), meta.get("chunks", [])):
+                        nuevos_fragmentos.append({"archivo": os.path.basename(ruta_rel), "texto": chunk_txt, "_id": chunk_id})
+
+                # ---- Procesar archivos nuevos o modificados con SHA-1 perezoso ----
+                n_nuevos = 0
+                for ruta_rel, ruta_completa in archivos_actuales.items():
                     try:
-                        nuevo_indice.remove_ids(np.array(ids_viejos, dtype=np.int64))
+                        st = os.stat(ruta_completa)
+                        mtime_actual = st.st_mtime
+                        size_actual = st.st_size
                     except Exception as e:
-                        logging.warning("[RAG] remove_ids '%s': %s", ruta_rel, e)
-                # Quitar de nuevos_fragmentos los chunks viejos de esta nota
-                nuevos_fragmentos = [
-                    frag for frag in nuevos_fragmentos if frag.get("_id") not in set(ids_viejos)
-                ]
+                        logging.warning("[RAG] No se pudo stat '%s': %s", ruta_completa, e)
+                        continue
 
-            # Leer contenido y generar chunks
-            try:
-                with open(ruta_completa, "r", encoding="utf-8", errors="ignore") as f:
-                    contenido = f.read()
-                if not contenido.strip():
-                    continue
-            except Exception as e:
-                logging.warning("[RAG] No se pudo leer '%s': %s", ruta_completa, e)
-                continue
+                    entrada_previa = entradas.get(ruta_rel)
+                    sha1_actual = None
+                    if entrada_previa is not None:
+                        mtime_prev = entrada_previa.get("mtime", 0)
+                        size_prev = entrada_previa.get("size")
+                        mtime_igual = abs(mtime_prev - mtime_actual) < 1e-3
+                        size_igual = (size_prev is not None and size_prev == size_actual)
 
-            titulo = os.path.splitext(os.path.basename(ruta_completa))[0]
-            chunks_txt = dividir_en_chunks(contenido, titulo, max_chars)
-            if not chunks_txt:
-                continue
+                        if mtime_igual and size_igual:
+                            continue  # Archivo intacto: sin cálculo de hash ni re-vectorización
 
-            # Vectorizar solo estos chunks
-            vectores = modelo.encode(
-                chunks_txt,
-                batch_size=32,
-                show_progress_bar=False,
-                convert_to_numpy=True,
-                normalize_embeddings=True,
-            ).astype(np.float32)
+                        if mtime_igual and size_prev is None:
+                            # Manifiesto antiguo sin tamaño: verificar SHA-1 por compatibilidad
+                            sha1_actual = _sha1_archivo(ruta_completa)
+                            if entrada_previa.get("sha1") == sha1_actual:
+                                entrada_previa["size"] = size_actual
+                                continue
+                        else:
+                            sha1_actual = _sha1_archivo(ruta_completa)
+                            if entrada_previa.get("sha1") == sha1_actual:
+                                entrada_previa["mtime"] = mtime_actual
+                                entrada_previa["size"] = size_actual
+                                continue
 
-            ids_nuevos = list(range(next_id, next_id + len(chunks_txt)))
-            next_id += len(chunks_txt)
+                    if sha1_actual is None:
+                        sha1_actual = _sha1_archivo(ruta_completa)
 
-            nuevo_indice.add_with_ids(vectores, np.array(ids_nuevos, dtype=np.int64))
+                    # Eliminar IDs previos si los había
+                    if entrada_previa:
+                        ids_viejos = entrada_previa.get("ids", [])
+                        if ids_viejos:
+                            try:
+                                nuevo_indice.remove_ids(np.array(ids_viejos, dtype=np.int64))
+                            except Exception as e:
+                                logging.warning("[RAG] remove_ids '%s': %s", ruta_rel, e)
+                        nuevos_fragmentos = [
+                            frag for frag in nuevos_fragmentos if frag.get("_id") not in set(ids_viejos)
+                        ]
 
-            for chunk_id, chunk_txt in zip(ids_nuevos, chunks_txt):
-                nuevos_fragmentos.append({
-                    "archivo": os.path.basename(ruta_rel),
-                    "texto": chunk_txt,
-                    "_id": chunk_id,
-                })
+                    # Leer contenido y generar chunks
+                    try:
+                        with open(ruta_completa, "r", encoding="utf-8", errors="ignore") as f:
+                            contenido = f.read()
+                        if not contenido.strip():
+                            continue
+                    except Exception as e:
+                        logging.warning("[RAG] No se pudo leer '%s': %s", ruta_completa, e)
+                        continue
 
-            entradas[ruta_rel] = {
-                "mtime": mtime_actual,
-                "sha1": sha1_actual,
-                "ids": ids_nuevos,
-                "chunks": chunks_txt,
-            }
-            n_nuevos += 1
-            logging.info("[RAG] Nota indexada: %s (%d chunks)", ruta_rel, len(chunks_txt))
+                    titulo = os.path.splitext(os.path.basename(ruta_completa))[0]
+                    chunks_txt = dividir_en_chunks(contenido, titulo, max_chars)
+                    if not chunks_txt:
+                        continue
 
-        hubo_cambios = n_nuevos > 0 or len(eliminados) > 0
-        logging.info(
-            "[RAG] %d notas nuevas/modificadas, %d eliminadas.",
-            n_nuevos, len(eliminados),
-        )
+                    # Vectorizar solo estos chunks
+                    vectores = modelo.encode(
+                        chunks_txt,
+                        batch_size=32,
+                        show_progress_bar=False,
+                        convert_to_numpy=True,
+                        normalize_embeddings=True,
+                    ).astype(np.float32)
 
-        # ---- Guardar caché si hubo cambios --------------------------------
-        if hubo_cambios:
-            _asegurar_cache_dir()
-            try:
-                faiss.write_index(nuevo_indice, _ruta_indice())
-            except Exception as e:
-                logging.warning("[RAG] No se pudo guardar el índice en caché: %s", e)
+                    ids_nuevos = list(range(next_id, next_id + len(chunks_txt)))
+                    next_id += len(chunks_txt)
 
-            nuevo_manifiesto = {
-                "modelo": config.MODELO_EMBEDDINGS,
-                "max_chars_chunk": max_chars,
-                "next_id": next_id,
-                **entradas,
-            }
-            _guardar_manifiesto(nuevo_manifiesto)
+                    nuevo_indice.add_with_ids(vectores, np.array(ids_nuevos, dtype=np.int64))
 
-        total_chunks = len(nuevos_fragmentos)
-        logging.info("[RAG] Índice listo: %d fragmentos.", total_chunks)
+                    for chunk_id, chunk_txt in zip(ids_nuevos, chunks_txt):
+                        nuevos_fragmentos.append({
+                            "archivo": os.path.basename(ruta_rel),
+                            "texto": chunk_txt,
+                            "_id": chunk_id,
+                        })
 
-        # ---- Escritura atómica de las variables globales ------------------
-        with _lock_rag:
-            _indice = nuevo_indice
-            _fragmentos = nuevos_fragmentos
-            _origenes = [f["archivo"] for f in nuevos_fragmentos]
+                    entradas[ruta_rel] = {
+                        "mtime": mtime_actual,
+                        "size": size_actual,
+                        "sha1": sha1_actual,
+                        "ids": ids_nuevos,
+                        "chunks": chunks_txt,
+                    }
+                    n_nuevos += 1
+                    logging.info("[RAG] Nota indexada: %s (%d chunks)", ruta_rel, len(chunks_txt))
 
-        if panel:
-            panel.actualizar_satelite(3, 3, "Memoria RAG", f"{total_chunks} Chunks Listos")
-        return total_chunks
+                hubo_cambios = n_nuevos > 0 or len(eliminados) > 0
+                logging.info(
+                    "[RAG] %d notas nuevas/modificadas, %d eliminadas.",
+                    n_nuevos, len(eliminados),
+                )
+
+                # ---- Guardar caché atómicamente si hubo cambios -----------
+                if hubo_cambios:
+                    _asegurar_cache_dir()
+                    indice_guardado = False
+                    try:
+                        _escritura_atomica(_ruta_indice(), lambda tmp: faiss.write_index(nuevo_indice, tmp))
+                        indice_guardado = True
+                    except Exception as e:
+                        logging.warning("[RAG] No se pudo guardar el índice en caché: %s", e)
+
+                    # Escribir el manifiesto SOLO si el índice se guardó con éxito
+                    if indice_guardado:
+                        nuevo_manifiesto = {
+                            "modelo": config.MODELO_EMBEDDINGS,
+                            "max_chars_chunk": max_chars,
+                            "next_id": next_id,
+                            **entradas,
+                        }
+                        _guardar_manifiesto(nuevo_manifiesto)
+
+                total_chunks = len(nuevos_fragmentos)
+                logging.info("[RAG] Índice listo: %d fragmentos.", total_chunks)
+
+                # ---- Escritura atómica de las variables globales ----------
+                with _lock_rag:
+                    _indice = nuevo_indice
+                    _fragmentos = nuevos_fragmentos
+                    _origenes = [f["archivo"] for f in nuevos_fragmentos]
+
+                if panel:
+                    panel.actualizar_satelite(3, 3, "Memoria RAG", f"{total_chunks} Chunks Listos")
+
+            finally:
+                _indexando = False
+
+            if not _reindex_pendiente:
+                break
+            logging.info("[RAG] Reindexación pendiente detectada. Ejecutando nueva pasada.")
 
     finally:
-        _indexando = False
         _lock_construir.release()
+
+    return total_chunks
 
 
 # ---------------------------------------------------------------------------
