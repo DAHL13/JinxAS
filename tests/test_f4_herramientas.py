@@ -32,8 +32,8 @@ def test_abrir_aplicacion_exe_encontrada():
 def test_abrir_aplicacion_exe_no_instalada():
     """Aplicación permitida pero no encontrada en PATH (shutil.which -> None)."""
     with patch("herramientas.shutil.which", return_value=None):
-        res = herramientas.abrir_aplicacion("chrome")
-        assert res == "No encontré chrome instalada."
+        res = herramientas.abrir_aplicacion("calculadora")
+        assert res == "No encontré calculadora instalada."
 
 
 def test_abrir_aplicacion_uri_exitosa():

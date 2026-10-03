@@ -118,7 +118,7 @@ def abrir_aplicacion(nombre_app: str = "", app_name: str = "") -> str:
         return f"La aplicación '{app}' no está permitida."
     tipo, _, objetivo = destino.partition(":")
     try:
-        if tipo == "uri":
+        if tipo in ("uri", "app"):
             os.startfile(objetivo)
         else:
             ruta = shutil.which(objetivo)
