@@ -81,8 +81,15 @@ def test_resiliencia_boveda_inexistente(tmp_path, monkeypatch):
     ruta_falsa = tmp_path / "boveda_inexistente_12345"
     monkeypatch.setattr(config, "RUTA_VAULT", str(ruta_falsa))
 
+    construir_indice()
     res = buscar_en_notas("inteligencia artificial")
-    assert "vacío" in res.lower() or "no existe" in res.lower() or "sin notas" in res.lower() or "no encontré" in res.lower()
+    assert (
+        "vacío" in res.lower()
+        or "no existe" in res.lower()
+        or "sin notas" in res.lower()
+        or "no encontré" in res.lower()
+        or "no se encontró" in res.lower()
+    )
 
 
 def test_resiliencia_boveda_vacia(tmp_path, monkeypatch):

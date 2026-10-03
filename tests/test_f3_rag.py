@@ -107,6 +107,12 @@ def env_rag(tmp_path, monkeypatch):
     def make_index(*args, **kwargs):
         return FaissIndexMock()
 
+    orig_faiss_attrs = {
+        attr: getattr(faiss_mod, attr)
+        for attr in ("IndexFlatIP", "IndexFlatL2", "IndexIDMap2", "write_index", "read_index")
+        if hasattr(faiss_mod, attr)
+    }
+
     faiss_mod.IndexFlatIP = MagicMock(side_effect=make_index)
     faiss_mod.IndexFlatL2 = MagicMock(side_effect=make_index)
     faiss_mod.IndexIDMap2 = MagicMock(side_effect=lambda inner: inner)
@@ -167,6 +173,8 @@ def env_rag(tmp_path, monkeypatch):
     }
 
     # Restaurar
+    for attr, val in orig_faiss_attrs.items():
+        setattr(faiss_mod, attr, val)
     memoria_rag._indice = None
     memoria_rag._fragmentos = []
     memoria_rag._origenes = []

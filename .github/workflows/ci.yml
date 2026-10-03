@@ -31,3 +31,15 @@ jobs:
       - name: Ejecutar suite de pruebas unitarias
         run: |
           pytest -q -m "not integration"
+
+      - name: Escaneo de vulnerabilidades con pip-audit
+        continue-on-error: true
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+
+      - name: Análisis estático de seguridad con Bandit
+        continue-on-error: true
+        run: |
+          pip install bandit
+          bandit -r jinxas -ll

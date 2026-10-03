@@ -103,8 +103,12 @@ def _asegurar_indice() -> None:
     global _indice
     if _indice is not None:
         return
-    import faiss  # import perezoso
-    dim = _obtener_modelo().get_sentence_embedding_dimension()
+    import faiss
+    raw_dim = _obtener_modelo().get_sentence_embedding_dimension()
+    try:
+        dim = int(raw_dim)
+    except (TypeError, ValueError):
+        dim = 384
     try:
         _indice = faiss.IndexIDMap2(faiss.IndexFlatIP(dim))
     except Exception:
@@ -267,11 +271,15 @@ def construir_indice(panel=None) -> int:
             _indexando = True
             try:
                 modelo = _obtener_modelo()
-                dim = (
+                raw_dim = (
                     modelo.get_embedding_dimension()
                     if hasattr(modelo, "get_embedding_dimension")
                     else modelo.get_sentence_embedding_dimension()
                 )
+                try:
+                    dim = int(raw_dim)
+                except (TypeError, ValueError):
+                    dim = 384
 
                 ruta_vault = config.RUTA_VAULT
                 max_chars = getattr(config, "MAX_CHARS_CHUNK", 900)
@@ -283,6 +291,10 @@ def construir_indice(panel=None) -> int:
                     if panel:
                         panel.actualizar_satelite(3, 3, "Memoria RAG", "Bóveda no encontrada")
                     total_chunks = 0
+                    with _lock_rag:
+                        _indice = None
+                        _fragmentos = []
+                        _origenes = []
                     break
 
                 # ---- Cargar manifiesto y decidir si reconstruir desde cero --------
