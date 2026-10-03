@@ -31,7 +31,8 @@ UMBRAL_DISTANCIA_RAG = UMBRAL_SIMILITUD_RAG  # alias residual para compatibilida
 MAX_CHARS_CHUNK = 900
 PALABRA_ACTIVACION = "jinx"
 MODELO_WAKEWORD = "tiny.en"
-VARIANTES_WAKEWORD = ["jinx", "jinks", "sphinx"]
+UMBRAL_WAKEWORD = 90
+VARIANTES_WAKEWORD = ["jinx", "jinks", "sphinx", "jinxs"]
 
 # Nivel de logging configurable por entorno (F5-04).
 # JINX_LOG=DEBUG activa logs detallados con contenido de notas/tools.

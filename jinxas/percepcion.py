@@ -88,9 +88,12 @@ def filtrar_transcripcion(res: dict) -> str | None:
 
     return texto
 
-def coincide_wakeword(texto: str, variantes: list, umbral: int = 80) -> bool:
-    # Compara cada palabra del texto transcrito contra las variantes aceptadas
-    return any(fuzz.ratio(p.lower(), v.lower()) >= umbral for p in texto.split() for v in variantes)
+def coincide_wakeword(texto: str, variantes: list, umbral: int | None = None) -> bool:
+    # Compara cada palabra de 3 o más letras del texto transcrito contra las variantes aceptadas
+    if umbral is None:
+        umbral = getattr(config, "UMBRAL_WAKEWORD", 90)
+    palabras = [p.lower() for p in texto.split() if len(p.strip()) >= 3]
+    return any(fuzz.ratio(p, v.lower()) >= umbral for p in palabras for v in variantes)
 
 def esperar_palabra_activacion(
     palabra_clave: str = PALABRA_ACTIVACION,
