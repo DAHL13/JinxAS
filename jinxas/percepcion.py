@@ -174,7 +174,8 @@ def esperar_palabra_activacion(
                     coincidencia = coincide_wakeword(texto_limpio, variantes)
 
                     if coincidencia:
-                        logging.info("¡Palabra de activación detectada con éxito! ('%s')", texto_detectado)
+                        logging.info("¡Palabra de activación detectada con éxito!")
+                        logging.debug("Palabra de activación detectada: '%s'", texto_detectado)
                         if panel: panel.actualizar_satelite(1, 1, "Micrófono", "Detectado: ¡Jinx!")
                         return True
 
@@ -277,7 +278,8 @@ def escuchar_y_transcribir(
         texto = filtrar_transcripcion(res)
         if texto:
             texto = limpiar_texto_transcrito(texto)
-            logging.info('Texto reconocido: "%s"', texto)
+            logging.info("Texto reconocido (%d caracteres).", len(texto))
+            logging.debug('Texto reconocido: "%s"', texto)
         else:
             logging.info("Transcripción descartada por filtro de alucinaciones.")
         return texto or None

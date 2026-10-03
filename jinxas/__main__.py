@@ -470,7 +470,8 @@ def bucle_voz_secundario(
                 # ── Estado 3: El Núcleo — llamada a Ollama/herramientas ──
                 panel.actualizar_estado(3)
                 panel.actualizar_satelite(3, 1, "Inferencia", "Generando respuesta...")
-                logging.info('Procesando respuesta para: "%s"...', texto_reconocido)
+                logging.info("Procesando turno (%d caracteres)...", len(texto_reconocido))
+                logging.debug('Procesando respuesta para: "%s"...', texto_reconocido)
                 contexto.append({"role": "user", "content": texto_reconocido})
                 contexto = recortar(contexto)
                 if panel:
