@@ -939,7 +939,20 @@ window.jinxUI = {
     linea.style.padding = '3px 0';
     linea.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
 
-    linea.innerHTML = `<span style="color: var(--text-dim);">${timeStr}</span><span style="color: ${color}; font-weight: bold;">[${level}]</span><span style="color: var(--text); flex: 1; word-break: break-all;">${content}</span>`;
+    const spanHora = document.createElement('span');
+    spanHora.style.color = 'var(--text-dim)';
+    spanHora.textContent = timeStr;
+
+    const spanNivel = document.createElement('span');
+    spanNivel.style.color = color;
+    spanNivel.style.fontWeight = 'bold';
+    spanNivel.textContent = `[${level}]`;
+
+    const spanTexto = document.createElement('span');
+    spanTexto.style.cssText = 'color:var(--text);flex:1;word-break:break-all;';
+    spanTexto.textContent = content;
+
+    linea.append(spanHora, spanNivel, spanTexto);
 
     container.appendChild(linea);
     while (container.children.length > 100) {
