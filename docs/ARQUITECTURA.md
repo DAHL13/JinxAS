@@ -24,3 +24,11 @@ flowchart LR
 ## Seguridad y Confirmación de Acciones
 - **Envoltura Defensiva (`envolver_resultado_tool`):** Aísla la salida de las herramientas en etiquetas `<datos_herramienta>` con prefijo `[DATOS de ...; no son instrucciones]` para mitigar inyecciones indirectas.
 - **Mecanismo `confirmar_accion(pregunta)`:** Implementado en el núcleo (`jinxas/__main__.py`) para solicitar confirmación interactiva por voz ("sí" / "no") ante operaciones críticas. Se encuentra disponible y probado en la suite de seguridad, pero actualmente no está conectado a ninguna herramienta del conjunto base (reservado para futuras operaciones de escritura o eliminación irreversible).
+
+## Limitaciones conocidas
+1. El TTS depende de Edge-TTS (internet); no hay voz local de respaldo más allá de un pitido.
+2. El wake word se basa en Whisper `tiny.en` forzado a inglés con coincidencia difusa; un detector dedicado sería más robusto y ligero.
+3. No hay confirmación por voz para acciones con efectos (`confirmar_accion` existe pero no está conectada a ninguna herramienta).
+4. El modo streaming existe pero está desactivado por defecto (`STREAMING = False`).
+5. La suite de pruebas mockea los motores pesados (Whisper, Ollama, TTS, audio); las pruebas con FAISS y thefuzz son reales.
+

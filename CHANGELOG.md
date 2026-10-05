@@ -3,6 +3,15 @@
 Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [0.5.3] - 2026-10-05
+### Corregido
+- **(H-033)** En `construir_indice` (`jinxas/memoria_rag.py`), cuando la bóveda no existe en el momento de la comprobación inicial pero se marca `_reindex_pendiente` durante la pasada, el bucle ya no descarta la petición pendiente sino que reintenta la indexación en una nueva pasada.
+- **(H-034)** Precisión en la documentación (`docs/TROUBLESHOOTING.md`, `README.md`, `docs/ARQUITECTURA.md`) distinguiendo explícitamente los componentes que operan sin conexión tras la descarga inicial (Whisper, Ollama y RAG) de los que requieren internet (`Edge-TTS` y `wttr.in`).
+- **(H-035)** Cierre documental de la versión `0.5.3`: adición de plantilla de verificación manual en hardware (`docs/auditoria/VERIFICACION_MANUAL.md`), sección de limitaciones conocidas, actualización de registros de auditoría y recuento verificado de 316 pruebas (5 de octubre de 2026).
+
+### Añadido
+- 2 pruebas unitarias nuevas en `tests/test_h033_rag_boveda_ausente.py` (316 pruebas recolectadas y ejecutadas en total; verificadas el 5 de octubre de 2026).
+
 ## [0.5.2] - 2026-10-04
 ### Corregido
 - **(H-028)** Variantes fonéticas plausibles agregadas a `VARIANTES_WAKEWORD` (`"jynx"`, `"ginx"`, `"gynx"`, `"jinxe"`, `"jinex"`) verificadas contra falsos positivos, y función `mejor_similitud_wakeword` con registro en nivel `DEBUG` para telemetría de casi-coincidencias.
@@ -58,7 +67,7 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 - Documentación de arquitectura (`docs/ARQUITECTURA.md`) y resolución de problemas (`docs/TROUBLESHOOTING.md`).
 
 ### Cambiado
-- Panel SENTINEL migrado a `ui/panel.html`, 100% offline sin peticiones a CDNs.
+- Panel SENTINEL migrado a `ui/panel.html`, local sin peticiones a CDNs.
 - Despacho de aplicaciones acotado mediante `shutil.which` y `subprocess.Popen(shell=False)` sin `cmd /c start`.
 - Optimización de latencia en herramientas de sistema (`psutil.cpu_percent` de 500ms a 100ms).
 - Estandarización de importaciones con namespace `jinxas` y eliminación de duplicación de `normalizar` (DRY).

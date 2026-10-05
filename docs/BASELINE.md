@@ -6,11 +6,11 @@ Este documento establece la línea base de rendimiento de **Jinx Asistente**, do
 
 ## 1. Entorno de Hardware y Software
 
-Todas las mediciones se registraron y ejecutan en el siguiente entorno de hardware local, caracterizado por una inferencia 100% en CPU:
+Todas las mediciones se registraron y ejecutan en el siguiente entorno de hardware local, caracterizado por una inferencia en CPU:
 
 | Componente | Especificación | Rol en la Arquitectura |
 |---|---|---|
-| **CPU** | AMD Ryzen 5 7530U (6 núcleos, 12 hilos, hasta 4.5 GHz) | Inferencia local 100% en CPU para LLM, STT y RAG |
+| **CPU** | AMD Ryzen 5 7530U (6 núcleos, 12 hilos, hasta 4.5 GHz) | Inferencia local en CPU para LLM, STT y RAG |
 | **RAM** | 32 GB DDR4 3200 MHz (Dual Channel) | Espacio suficiente para albergar simultáneamente Ollama, Whisper y embeddings |
 | **GPU** | AMD Radeon Vega 7 integrada (2 GB VRAM compartida) | No utilizada para inferencia acelerada (ejecución pura en CPU) |
 | **Almacenamiento** | SSD NVMe PCIe 3.0 | Carga de pesos de modelos y lectura de base de datos de notas |
@@ -46,7 +46,7 @@ Las métricas mostradas a continuación provienen de los registros históricos r
 3. **Indexación RAG síncrona en el arranque:**  
    Al arrancar `main.py`, se importaba `sentence_transformers` y `faiss`, cargando los pesos del modelo de embeddings y escaneando la bóveda de Obsidian síncronamente en el hilo principal. Esto congelaba el inicio de Jinx durante **8 a 10 segundos** antes de que el centinela pudiera si quiera comenzar a escuchar.
 4. **Síntesis TTS monolítica:**  
-   El orquestador esperaba a que el LLM concluyera el 100% de su respuesta (espera completa de ~18.4 s) y luego enviaba el bloque completo a Edge-TTS (otros ~6.9 s). El usuario permanecía en silencio absoluto durante más de 34 segundos antes de escuchar el primer fonema.
+   El orquestador esperaba a que el LLM concluyera la totalidad de su respuesta (espera completa de ~18.4 s) y luego enviaba el bloque completo a Edge-TTS (otros ~6.9 s). El usuario permanecía en silencio absoluto durante más de 34 segundos antes de escuchar el primer fonema.
 
 ---
 
@@ -84,7 +84,7 @@ La siguiente tabla resume el impacto arquitectónico y las mejoras medidas o pro
 - **Contexto:** Se evaluó si convenía reescribir o sustituir el centinela con librerías alternativas de wake word (como Porcupine o OpenWakeWord).
 - **Evaluación y hallazgos:**  
   1. Las funciones `esperar_palabra_activacion()` y `coincide_wakeword()` en [percepcion.py](../jinxas/percepcion.py) utilizan Whisper `tiny.en` con ráfagas cortas procesadas con Voice Activity Detection nativo y comparación difusa con `thefuzz`.
-  2. Este mecanismo demostró una tasa de falsos positivos prácticamente nula y una precisión fonética sobresaliente en pruebas de campo continuas, consumiendo niveles despreciables de CPU en reposo gracias a los sleeps y timeouts de VAD.
+  2. Este mecanismo mostró una baja tasa de falsos positivos y precisión fonética adecuada en pruebas iniciales, con bajo consumo de CPU en reposo gracias a los sleeps y timeouts de VAD.
 - **Decisión (Política de Estabilidad):** `esperar_palabra_activacion()` y `coincide_wakeword()` **se congelan sin modificaciones**. Se preserva la estabilidad del wake word intacta durante todo el ciclo de consolidación.
 
 ---
@@ -116,7 +116,7 @@ Como parte de la consolidación del subsistema de herramientas y la validación 
 | Parámetro | Valor / Registro | Observaciones |
 |---|---|---|
 | **Fecha de evaluación** | 27 de septiembre de 2026 | Ejecución directa post-Fase 7 |
-| **Modelo evaluado** | Qwen 2.5 3B (`qwen2.5:3b`) | Inferencia local 100% en CPU vía Ollama |
+| **Modelo evaluado** | Qwen 2.5 3B (`qwen2.5:3b`) | Inferencia local en CPU vía Ollama |
 | **Benchmark** | `tests/eval_tools.py -v` | 17 casos de prueba representativos (atajos, tools y texto libre) |
 | **Tasa de acierto** | **16/17 (94.1%)** | Precisión en selección de tool y estructura de argumentos |
 | **Estado** | **Aprobado** ✅ | Supera el umbral de aceptación del 80% |

@@ -1,24 +1,24 @@
-# Informe Final de Auditoría Técnica — JinxAS v0.5.2
+# Informe Final de Auditoría Técnica — JinxAS v0.5.3
 
-**Fecha:** 4 de octubre de 2026
+**Fecha:** 5 de octubre de 2026
 **Auditor:** Auditoría técnica independiente (automatizada)
 **Rama:** `main` (Publicada en GitHub: `https://github.com/DAHL13/JinxAS.git`)
-**Etiqueta:** `v0.5.2`
-**Hash base:** `a197ee99de2aa8b4e3d65ceb7994c7fa896a6e62`
+**Etiqueta:** `v0.5.3`
+**Hash base:** `b2fe428`
 
 ---
 
 ## 1. Resumen Ejecutivo
 
 Se auditó el proyecto JinxAS en modo A (auditoría + pruebas + remediación).
-Se identificaron y procesaron **32 hallazgos** (H-001 a H-032).
-Se implementaron las soluciones para todos los hallazgos; pendiente de verificación manual en hardware.
-La suite de pruebas cuenta con **314 pruebas** (verificadas el 4 de octubre de 2026), todas en verde.
-El wheel incluye `jinxas/ui/panel.html` y el empaquetado es totalmente funcional fuera del repositorio.
+Se identificaron y procesaron **35 hallazgos** (H-001 a H-035).
+Se implementaron las soluciones para todos los hallazgos; pendiente de verificación manual en hardware y confirmación de CI en GitHub.
+La suite de pruebas cuenta con **316 pruebas** (verificadas el 5 de octubre de 2026), todas en verde.
+El wheel incluye `jinxas/ui/panel.html` y el empaquetado es instalable fuera del repositorio.
 Las reglas de Ruff se endurecieron retirando F401, F841, F541 y E741 de la lista de ignoradas.
 Se sincronizó el acceso concurrente entre pywebview y el bucle de voz (CWE-362), se desacopló la reproducción de audio mediante `_LOCK_AUDIO_PLAYBACK`, se mitigó el riesgo de XSS en panel SENTINEL y se blindó la carga de configuración con `config_local.json`.
 No se encontraron secretos, credenciales ni rutas personales en el código o historial.
-**Cero hallazgos abiertos.**
+**Cero hallazgos abiertos en código.**
 
 ---
 
@@ -26,14 +26,14 @@ No se encontraron secretos, credenciales ni rutas personales en el código o his
 
 ### FAVORABLE CON RESERVAS
 
-No quedan defectos de código, vulnerabilidades abiertas ni inconsistencias documentales al cierre de la auditoría. Todos los hallazgos identificados en la auditoría inicial y en la segunda revisión (H-017 a H-026) fueron completamente subsanados y verificados con pruebas automatizadas.
+Los hallazgos identificados hasta la cuarta revisión (H-001 a H-035) fueron implementados en código y documentación y verificados con 316 pruebas automatizadas.
 
-**Alcance de la Reserva:**
-La opinión favorable se emite "con reservas" debido exclusivamente a que los siguientes aspectos requieren validación manual en caliente por parte del usuario final sobre hardware físico de Windows:
-1. Sesión de voz en vivo con micrófono físico para corroborar umbrales de energía de PyAudio.
-2. Comprobación auditiva en parlantes de la no superposición de audio durante la síntesis y comandos.
+**Condición para pasar a "Favorable":**
+El veredicto se mantiene en **"Favorable con reservas"** y pasará a **"Favorable"** únicamente cuando el usuario complete [`docs/auditoria/VERIFICACION_MANUAL.md`](VERIFICACION_MANUAL.md) en su equipo físico con Windows y confirme que la CI de GitHub (`windows-latest`) está en verde para `v0.5.3`.
+1. Sesión de voz en vivo con micrófono físico para corroborar umbrales de energía de PyAudio y activación/no-activación del wake word.
+2. Comprobación auditiva en parlantes de la no superposición de audio durante la síntesis y el botón Repetir.
 3. Despacho e interacción visual de los navegadores Microsoft Edge y Google Chrome invocados vía ShellExecute en Windows.
-Dichos puntos fueron rigurosamente cubiertos mediante pruebas automatizadas con mocks y emulación, pero escapan al alcance de un entorno headless sin periféricos de audio físicos conectados.
+4. Confirmación del estado en verde del flujo de GitHub Actions (`windows-latest`).
 
 ---
 
@@ -114,10 +114,10 @@ Dichos puntos fueron rigurosamente cubiertos mediante pruebas automatizadas con 
  
 | Prueba | Antes | Después |
 |--------|-------|---------|
-| `pytest -q -m "not integration"` | 188 passed (0.89s) | **281 passed** (1.38s) |
+| `pytest -q -m "not integration"` | 188 passed (0.89s) | **316 passed** (~2s; 5 de octubre de 2026) |
 | `ruff check .` | All checks passed | **All checks passed (endurecido)** |
 | `ruff check . --select F401,F841,F541,E741` | 59 errores | **0 errores** |
-| `python -m build --wheel` | ⚠️ sin panel.html | ✅ con panel.html (v0.5.1) |
+| `python -m build --wheel` | ⚠️ sin panel.html | ✅ con panel.html (v0.5.3) |
 | `pip check` | OK | OK (sin dependencias rotas) |
 | `bandit -r jinxas/ -q` | 1 High, 14 Low | 0 High real (B324 falso positivo documentado), 14 Low |
 | `vulture jinxas/` | 4 resultados | 0 en código activo |
@@ -134,14 +134,16 @@ Dichos puntos fueron rigurosamente cubiertos mediante pruebas automatizadas con 
 ### CRÍTICO (1)
 - **H-001**: Wheel no incluía ui/panel.html → ✅ Corregido
 
-### ALTO (5)
+### ALTO (7)
 - **H-002**: pywebview sin versión fijada + thefuzz faltante → ✅ Corregido
 - **H-003**: sys.path hack en __init__.py → ✅ Corregido
 - **H-017**: Concurrencia en panel y reproducción de audio (Flush, Centinela y Mutex) → ✅ Corregido
 - **H-018**: Integridad del índice FAISS y caché RAG (atómico, lazy hash, ntotal) → ✅ Corregido
 - **H-024**: Sanitización de nombres reservados de Windows con extensiones (`CON.md`, etc.) → ✅ Corregido
+- **H-029**: Robustez del RAG ante fallos de manifiesto, concurrencia y notas vacías → ✅ Corregido
+- **H-033**: Reindexado pendiente descartado cuando la bóveda no existe → ✅ Corregido
 
-### MEDIO (11)
+### MEDIO (15)
 - **H-004**: Falso positivo de Bandit B324 (`hashlib.sha1` con `usedforsecurity=False`) → ✅ Documentado
 - **H-005**: Imports muertos en producción → ✅ Corregido
 - **H-006**: Parámetro tiempo_maximo ignorado → ✅ Corregido
@@ -154,8 +156,11 @@ Dichos puntos fueron rigurosamente cubiertos mediante pruebas automatizadas con 
 - **H-022**: Riesgo de XSS en panel SENTINEL por interpolación innerHTML → ✅ Corregido
 - **H-023**: Apertura de Edge y Chrome en Windows vía App Paths / ShellExecute → ✅ Corregido
 - **H-026**: CI y conftest con librerías reales (FAISS real, bandit y pip-audit) → ✅ Corregido
+- **H-028**: Variantes fonéticas adicionales de wake word y telemetría de casi-coincidencias → ✅ Corregido
+- **H-030**: Carga única y segura de modelos Whisper en memoria → ✅ Corregido
+- **H-031**: Mensaje coherente al agotar rondas de herramientas → ✅ Corregido
 
-### BAJO (9)
+### BAJO (12)
 - **H-007**: Python 3.11+ en BASELINE.md → ✅ Corregido
 - **H-008**: num_ctx 4096 en BASELINE.md → ✅ Corregido
 - **H-009**: thefuzz faltante en requirements.in → ✅ Corregido
@@ -165,6 +170,9 @@ Dichos puntos fueron rigurosamente cubiertos mediante pruebas automatizadas con 
 - **H-014**: Cobertura de pruebas en lógica crítica → ✅ Corregido
 - **H-025**: Mejoras menores (precarga Whisper, tool_calls colgados, config_local.json, panel) → ✅ Corregido
 - **H-027**: Higiene del repositorio, sanitización de rutas locales y versión 0.5.1 → ✅ Corregido
+- **H-032**: Extracción de `procesar_eventos_panel` y saneamiento documental → ✅ Corregido
+- **H-034**: Precisión documental sobre componentes locales vs. con conexión a red → ✅ Corregido
+- **H-035**: Cierre documental, lista de verificación manual, limitaciones conocidas y versión 0.5.3 → ✅ Corregido
 
 Ver detalle completo en [hallazgos.md](hallazgos.md).
 
@@ -200,12 +208,21 @@ Ver detalle completo en [hallazgos.md](hallazgos.md).
 | H-024 | `3b6d6cb` | jinxas/memoria.py | test_h024_nombres_reservados.py |
 | H-025 | `cab7f53` | jinxas/percepcion.py, jinxas/__main__.py, jinxas/config.py | test_h025_menores.py |
 | H-026 | `de671da` | tests/conftest.py, requirements-dev.txt, .github/workflows/ci.yml | test_rag_faiss_real.py |
+| H-027 | `7cb8d40` | docs/auditoria/*, README.md, CHANGELOG.md, pyproject.toml | — |
+| H-028 | `1f98a61` | jinxas/config.py, jinxas/percepcion.py | test_h028_wakeword.py |
+| H-029 | `deaf45b` | jinxas/memoria_rag.py | test_h029_rag_robustez.py |
+| H-030 | `4ac4652` | jinxas/percepcion.py | test_h030_modelos.py |
+| H-031 | `c70e014` | jinxas/config.py, jinxas/__main__.py | test_h031_limite_rondas.py |
+| H-032 | `a197ee9` | jinxas/__main__.py, docs/, CHANGELOG.md, pyproject.toml | test_h032_eventos_panel.py |
+| H-033 | `b2fe428` | jinxas/memoria_rag.py | test_h033_rag_boveda_ausente.py |
+| H-034 | `35ea56c` | docs/TROUBLESHOOTING.md, README.md, docs/ARQUITECTURA.md | — |
+| H-035 | *(cierre)* | docs/auditoria/VERIFICACION_MANUAL.md, README.md, CHANGELOG.md | 316 tests |
 
 ---
 
 ## 8. Plan de Acción: Propuestas Pendientes
 
-No quedan propuestas pendientes. Todas las mejoras de arquitectura, robustez, concurrencia y seguridad han sido implementadas y probadas.
+Las correcciones de código y documentación están implementadas. Queda pendiente la ejecución manual por parte del usuario en [`docs/auditoria/VERIFICACION_MANUAL.md`](VERIFICACION_MANUAL.md) y la confirmación de la CI en GitHub Actions.
 
 ---
 
@@ -216,7 +233,7 @@ No quedan propuestas pendientes. Todas las mejoras de arquitectura, robustez, co
 | Medianas de latencia en vivo (TTFA, STT, LLM) | Requiere sesión de voz con micrófono activo en caliente |
 | eval_tools.py (16/17 del BASELINE) | Requiere Ollama daemon activo con modelo descargado |
 | Edge-TTS funcional | Requiere conexión a internet a servidores Microsoft |
-| CI en GitHub Actions | No se verificó el resultado del pipeline en la rama |
+| CI en GitHub Actions | No verificado desde el entorno del agente |
 | Despacho interactivo de Edge/Chrome | Requiere sesión de usuario visual activa en Windows |
 
 ---
@@ -232,7 +249,7 @@ No quedan propuestas pendientes. Todas las mejoras de arquitectura, robustez, co
 
 | Métrica | Antes | Después | Δ |
 |---------|-------|---------|---|
-| Tests pasando | 188 | **281** | +93 |
+| Tests pasando | 188 | **316** (5 de octubre de 2026) | +128 |
 | Tests fallando | 0 | 0 | = |
 | Avisos ruff (reglas F/E) | 59 | **0** | -59 |
 | Bandit High | 1 | **0 real (1 falso positivo B324)** | -1 |
@@ -241,7 +258,7 @@ No quedan propuestas pendientes. Todas las mejoras de arquitectura, robustez, co
 | Archivos en wheel | 16 | **18** | +2 |
 | Hallazgos abiertos CRÍTICO | 1 | **0** | -1 |
 | Hallazgos abiertos ALTO | 2 | **0** | -2 |
-| Hallazgos abiertos TOTAL | 26 | **0** | -26 |
+| Hallazgos abiertos en código | 35 | **0** | -35 |
 
 ---
 

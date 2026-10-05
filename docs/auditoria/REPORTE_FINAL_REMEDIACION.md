@@ -1,13 +1,13 @@
 # 📋 Reporte Consolidado de Auditoría, Correcciones y Mejoras — JinxAS
 
-**Proyecto:** JinxAS (Asistente de Voz Local para Windows)  
-**Versión Auditada y Remediada:** v0.5.2 (Consolidada desde v0.5.1)  
+**Proyecto:** JinxAS (Asistente de Voz para Windows con STT, LLM y RAG Locales)  
+**Versión Auditada y Remediada:** v0.5.3 (Consolidada desde v0.5.1/v0.5.2)  
 **Rol:** Auditor Técnico Independiente (Ingeniería de Software y Seguridad de Aplicaciones)  
 **Destinatario:** Estudiante de Desarrollo de Software Multiplataforma  
-**Fecha:** 4 de octubre de 2026  
+**Fecha:** 5 de octubre de 2026  
 **Rama:** `main` (Publicada en GitHub: [https://github.com/DAHL13/JinxAS.git](https://github.com/DAHL13/JinxAS.git))  
-**Etiqueta de Cierre:** `v0.5.2`  
-**Veredicto Final:** **FAVORABLE CON RESERVAS** (hallazgos implementados; pendiente de verificación manual en hardware)  
+**Etiqueta de Cierre:** `v0.5.3`  
+**Veredicto Final:** **FAVORABLE CON RESERVAS** (pasará a **Favorable** solo cuando el usuario complete `docs/auditoria/VERIFICACION_MANUAL.md` y la CI esté en verde)  
 
 ---
 
@@ -21,15 +21,15 @@ Todos los defectos identificados fueron abordados mediante la metodología **Red
 
 | Métrica / Dimensión | Estado Inicial (Línea Base) | Estado Final (Remediado) | Variación e Impacto |
 |---|:---:|:---:|:---:|
-| **Pruebas Unitarias (`pytest`)** | 188 aprobadas | **314 aprobadas (0 fallos; 4 de octubre de 2026)** | **+126 pruebas nuevas** (lógica crítica, resiliencia, FAISS real, wakeword, concurrencia, robustez RAG) |
+| **Pruebas Unitarias (`pytest`)** | 188 aprobadas | **316 aprobadas (0 fallos; 5 de octubre de 2026)** | **+128 pruebas nuevas** (lógica crítica, resiliencia, FAISS real, wakeword, concurrencia, robustez RAG) |
 | **Tiempo de Ejecución de Suite** | 0.89 s | **~2 s** | desacoplada de hardware pesado y red |
 | **Reglas de Calidad / Linter (`ruff`)** | 7 reglas silenciadas (59 avisos) | **0 avisos (Reglas activas)** | Código endurecido sin `F401`, `F841`, `F541`, `E741` |
-| **Empaquetado Wheel (`pip`)** | Incompleto (sin interfaz gráfica) | **Completo (`jinxas/ui/panel.html`)** | Instalable y funcional fuera del repositorio (v0.5.2) |
+| **Empaquetado Wheel (`pip`)** | Incompleto (sin interfaz gráfica) | **Completo (`jinxas/ui/panel.html`)** | Instalable y funcional fuera del repositorio (v0.5.3) |
 | **Vulnerabilidades Bandit (Alta)** | 1 detección (B324 / SHA1) | **0 reales (1 falso positivo documentado)** | Mitigado CWE-327 (`usedforsecurity=False`), no criptográfico |
 | **Vulnerabilidades de Librerías** | 3 CVEs en `urllib3 2.7.0` | **0 CVEs (`urllib3==2.8.0`)** | Dependencia actualizada y fijada |
 | **Condiciones de Carrera (CWE-362)** | Riesgo entre UI y bucle de voz | **Neutralizado (`threading.Lock` / `_LOCK_AUDIO_PLAYBACK`)** | Acceso thread-safe sincronizado a memoria y audio |
 | **Inyección de Código (CWE-94)** | Import no confinado de config | **Neutralizado (`config_local.json`)** | Carga restringida y parseada estrictamente con `json.load` |
-| **Hallazgos Totales Abiertos** | 32 identificados | **0 abiertos (hallazgos implementados; pendiente de verificación manual en hardware)** | Cierre de auditoría en 3 fases |
+| **Hallazgos Totales Abiertos** | 35 identificados | **0 abiertos en código (pendiente de verificación manual en hardware y CI)** | Cierre de auditoría en 4 revisiones |
 
 ---
 
@@ -585,11 +585,11 @@ c26545f fix(H-006): usar parámetros de escuchar_y_transcribir en lugar de confi
 
 Para reproducir localmente las validaciones de auditoría en cualquier momento:
 
-### 1. Ejecución de la suite completa de pruebas (314 tests)
+### 1. Ejecución de la suite completa de pruebas (316 tests)
 ```powershell
 python -m pytest -q -m "not integration"
 ```
-*Resultado esperado:* `314 passed in ~2s` (sin warnings; verificado el 4 de octubre de 2026).
+*Resultado esperado:* `316 passed in ~2s` (sin warnings; verificado el 5 de octubre de 2026).
 
 ### 2. Validación de estilo y calidad de código
 ```powershell
@@ -601,11 +601,14 @@ ruff check .
 ```powershell
 python -m build --wheel
 ```
-*Resultado esperado:* Generación de `dist/jinxas-0.5.1-py3-none-any.whl` conteniendo `jinxas/ui/panel.html`.
+*Resultado esperado:* Generación de `dist/jinxas-0.5.3-py3-none-any.whl` conteniendo `jinxas/ui/panel.html`.
 
 ---
 
 ## 5. Dictamen y Conclusión del Auditor
 
-El proyecto **JinxAS** ha alcanzado el nivel de madurez, robustez y seguridad exigido para una entrega profesional de software multiplataforma. La separación de responsabilidades, la protección contra inyecciones de datos, el aislamiento de hardware mediante mocks y la estabilidad del centinela de voz sitúan a esta versión v0.5.1 en un estándar sobresaliente de ingeniería de software local.
+En la versión `v0.5.3` se han implementado las correcciones correspondientes a los hallazgos H-001 a H-035, verificadas con 316 pruebas automatizadas (`pytest`) y análisis estático (`ruff`).
+
+El veredicto se mantiene en **Favorable con reservas** y pasará a **Favorable** solo cuando el usuario complete las pruebas en hardware descritas en [`docs/auditoria/VERIFICACION_MANUAL.md`](VERIFICACION_MANUAL.md) y confirme que la CI de GitHub (`windows-latest`) está en verde para `v0.5.3`.
+
 

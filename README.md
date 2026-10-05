@@ -20,8 +20,9 @@ Jinx escucha de forma pasiva mediante un detector de wake word centinela, proces
 - 📊 **[Línea Base y Benchmarks](docs/BASELINE.md):** Mediciones de latencia, TTFA, rendimiento y consumo de RAM.
 - 🛠️ **[Guía de Solución de Problemas](docs/TROUBLESHOOTING.md):** Diagnósticos y soluciones prácticas para Windows 10/11.
 - 📜 **[Registro de Cambios (Changelog)](CHANGELOG.md):** Historial completo de versiones siguiendo la especificación Keep a Changelog.
-- 📋 **[Reporte Consolidado de Auditoría](docs/auditoria/REPORTE_FINAL_REMEDIACION.md):** Detalle técnico de los 32 hallazgos remediados (H-001 a H-032).
-- 📑 **[Informe Ejecutivo de Remediación](docs/auditoria/INFORME_FINAL_EJECUTIVO_REMEDIACION.md):** Resumen de calidad, seguridad y métricas comparativas v0.5.2.
+- 📋 **[Reporte Consolidado de Auditoría](docs/auditoria/REPORTE_FINAL_REMEDIACION.md):** Detalle técnico de los 35 hallazgos remediados (H-001 a H-035).
+- 📑 **[Informe Ejecutivo de Remediación](docs/auditoria/INFORME_FINAL_EJECUTIVO_REMEDIACION.md):** Resumen de calidad, seguridad y métricas comparativas v0.5.3.
+- ✅ **[Lista de Verificación Manual](docs/auditoria/VERIFICACION_MANUAL.md):** Pruebas en equipo físico Windows pendientes de completar por el usuario.
 
 ---
 
@@ -155,7 +156,7 @@ La suite de pruebas unitarias está desacoplada de hardware pesado y se ejecuta 
 ```bash
 python -m pytest -q
 ```
-*(314 pruebas pasando en verde; verificadas el 4 de octubre de 2026)*.
+*(316 pruebas pasando en verde; verificadas el 5 de octubre de 2026)*.
 
 Para evaluar la precisión del enrutamiento de herramientas contra el LLM real:
 ```bash
@@ -192,7 +193,7 @@ JinxAS/
 │   ├── TROUBLESHOOTING.md     # Guía de solución de problemas en Windows
 │   └── auditoria/             # Informes completos de auditoría y remediación técnica
 ├── jinxas/                    # Paquete principal del asistente (PEP 621)
-│   ├── __init__.py            # Versión v0.5.2 y registro de módulo
+│   ├── __init__.py            # Versión v0.5.3 y registro de módulo
 │   ├── __main__.py            # Orquestador del bucle de voz y GUI
 │   ├── atajos.py              # Enrutador determinista por regex (0 ms LLM)
 │   ├── cerebro.py             # Cliente Ollama, tool calling y métricas tok/s
@@ -209,7 +210,7 @@ JinxAS/
 │   ├── ui/                    # Recursos web del panel embebidos en el paquete
 │   │   └── panel.html         # Panel SENTINEL local (sin CDNs)
 │   └── voz.py                 # TTS: Edge-TTS streaming y reproductor pygame
-├── tests/                     # Suite de pruebas unitarias y de integración (314 tests)
+├── tests/                     # Suite de pruebas unitarias y de integración (316 tests)
 │   ├── conftest.py            # Carga condicional de dependencias reales y mocks
 │   ├── test_comandos.py       # Coincidencia exacta de comandos de salida y reinicio
 │   ├── test_f1_criticas.py    # Robustez del bucle y llamadas a herramientas
@@ -234,6 +235,7 @@ JinxAS/
 │   ├── test_h030_modelos.py   # Carga única thread-safe de Whisper
 │   ├── test_h031_limite_rondas.py # Mensaje transparente ante límite de rondas
 │   ├── test_h032_eventos_panel.py # Eventos de panel (Emergency Flush y repetir)
+│   ├── test_h033_rag_boveda_ausente.py # Reindexado pendiente con bóveda ausente
 │   ├── test_rag_faiss_real.py # Pruebas deterministas con motor FAISS real
 │   ├── test_resiliencia.py    # Suite de inyección de fallos y resiliencia
 │   └── eval_tools.py          # Benchmark de enrutamiento Ollama
@@ -262,7 +264,17 @@ A raíz de una auditoría exhaustiva de arquitectura (septiembre de 2026), JinxA
 | **Fase 4** | Herramientas confiables | ✅ | `registro.py` como fuente única de verdad, allowlist estricto `exe:`/`uri:`, optimización de latencia de CPU (100 ms) y benchmark `eval_tools.py`. |
 | **Fase 5** | Seguridad, privacidad y documentación | ✅ | Licencia MIT, logs higienizados (JINX_LOG), envoltura de tools y normalización unificada (DRY). |
 | **Fase 6** | Panel SENTINEL honesto y funcional | ✅ | Panel SENTINEL local (sin CDNs), telemetría real (tok/s), llamadas JS seguras vía `_eval` y layout responsivo. |
-| **Fase 7** | Pruebas de integración, CI y cierre | ✅ | Paquete jinxas/, CI en GitHub Actions, 314 tests unitarios limpios (sin warnings; 4 de octubre de 2026), ARQUITECTURA.md y release v0.5.2 (hallazgos implementados; pendiente de verificación manual en hardware). |
+| **Fase 7** | Pruebas de integración, CI y cierre | ✅ | Paquete jinxas/, CI en GitHub Actions, 316 tests unitarios limpios (sin warnings; 5 de octubre de 2026), ARQUITECTURA.md y release v0.5.3 (hallazgos implementados; pendiente de verificación manual en hardware). |
+
+---
+
+## ⚠️ Limitaciones conocidas
+
+1. El TTS depende de Edge-TTS (internet); no hay voz local de respaldo más allá de un pitido.
+2. El wake word se basa en Whisper `tiny.en` forzado a inglés con coincidencia difusa; un detector dedicado sería más robusto y ligero.
+3. No hay confirmación por voz para acciones con efectos (`confirmar_accion` existe pero no está conectada a ninguna herramienta).
+4. El modo streaming existe pero está desactivado por defecto (`STREAMING = False`).
+5. La suite de pruebas mockea los motores pesados (Whisper, Ollama, TTS, audio); las pruebas con FAISS y thefuzz son reales.
 
 ---
 

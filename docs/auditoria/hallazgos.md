@@ -449,7 +449,7 @@
 | **Causa** | Falta de captura defensiva en serialización de manifiesto, cerrojo único sin cerrojo auxiliar de flag y omisión de limpieza de entradas en notas vacías. |
 | **Efecto** | Pérdida de búsquedas semánticas en la sesión o descarte innecesario del caché al reiniciar. |
 | **Severidad** | **ALTO** |
-| **En palabras simples** | Si fallaba el guardado del manifiesto en disco, el asistente dejaba de buscar notas en esa sesión. Además, vaciar una nota provocaba que al reiniciar se recalculase todo desde cero. Ahora es completamente robusto y tolerante a fallos. |
+| **En palabras simples** | Si fallaba el guardado del manifiesto en disco, el asistente dejaba de buscar notas en esa sesión. Además, vaciar una nota provocaba que al reiniciar se recalculase todo desde cero. Se añadieron protecciones para mantener el índice disponible en memoria y actualizar el manifiesto al vaciar notas. |
 | **Decisión** | Corregir |
 | **Estado** | ✅ Corregido — commit `deaf45b` | Prueba: `tests/test_h029_rag_robustez.py` |
 
@@ -500,4 +500,53 @@
 | **En palabras simples** | Se extrajo la función de eventos del panel para probar directamente el botón de vaciar memoria y repetir audio, y se corrigieron todos los reportes técnicos con cifras reales y verificadas. |
 | **Decisión** | Corregir |
 | **Estado** | ✅ Corregido | Prueba: `tests/test_h032_eventos_panel.py` |
+
+---
+
+## H-033 — Reindexado pendiente descartado cuando la bóveda no existe
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/memoria_rag.py |
+| **Condición** | En `construir_indice`, cuando `RUTA_VAULT` no era un directorio, la rama ponía `_reindex_pendiente = False`, liberaba `_lock_construir` y ejecutaba `break` sin comprobar si otra hebra había solicitado reindexación mientras tanto. |
+| **Criterio** | C2 (ISO 25010 — Fiabilidad y Concurrencia), CWE-362 |
+| **Causa** | Descarte incondicional de `_reindex_pendiente` en la salida temprana por bóveda inexistente. |
+| **Efecto** | Si `guardar_nota` creaba la bóveda e intentaba reindexar mientras la indexación inicial veía la bóveda ausente, la nota recién guardada no se indexaba hasta el siguiente guardado o reinicio. |
+| **Severidad** | **ALTO** |
+| **En palabras simples** | Si se guardaba la primera nota justo cuando el programa arrancaba sin carpeta de notas, esa nota podía quedarse sin indexar hasta el próximo reinicio. Ahora el bucle verifica si quedó una petición pendiente y repite la pasada. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `b2fe428` | Prueba: `tests/test_h033_rag_boveda_ausente.py` |
+
+---
+
+## H-034 — Declaraciones de funcionamiento sin red imprecisas en la documentación
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | docs/TROUBLESHOOTING.md, README.md, docs/ARQUITECTURA.md |
+| **Condición** | `docs/TROUBLESHOOTING.md:130` y descripciones afines empleaban formulaciones sobre operación desconectada de la red que podían interpretarse como aplicables a todo el asistente, cuando `Edge-TTS` y `wttr.in` requieren internet. |
+| **Criterio** | C1 (Consistencia Documentación vs. Código) |
+| **Causa** | Generalización del carácter local de los modelos de inferencia (Whisper, Ollama, RAG) al sistema completo. |
+| **Efecto** | Posible confusión sobre qué funciones operan sin internet y cuáles dependen de servicios en línea. |
+| **Severidad** | **BAJO** |
+| **En palabras simples** | Se aclaró en la documentación que Whisper, Ollama y el buscador de notas funcionan sin internet tras descargar los modelos, mientras que la voz (Edge-TTS) y el clima (wttr.in) sí necesitan conexión. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `35ea56c` | Prueba: verificación documental |
+
+---
+
+## H-035 — Cierre documental, lista de verificación manual, limitaciones conocidas y versión 0.5.3
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | docs/auditoria/VERIFICACION_MANUAL.md, README.md, docs/ARQUITECTURA.md, CHANGELOG.md, pyproject.toml, jinxas/__init__.py |
+| **Condición** | Faltaba una plantilla de verificación manual separada con casillas sin marcar para el usuario, una sección explícita de limitaciones conocidas y la actualización de versión y conteo real de pruebas a `0.5.3` (316 pruebas). |
+| **Criterio** | C1 (Documentación), C5 (Trazabilidad de cierre) |
+| **Causa** | Consolidación final de la cuarta revisión de auditoría. |
+| **Efecto** | Documentación lista para que el usuario ejecute las pruebas manuales en su equipo y verifique la CI antes de dar por cerrado el proyecto. |
+| **Severidad** | **BAJO** |
+| **En palabras simples** | Se añadió la tabla de pruebas manuales para rellenar en Windows, se documentaron las limitaciones conocidas del diseño actual y se actualizó la versión a 0.5.3 con las 316 pruebas verificadas. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido | Prueba: `pytest --collect-only -q` (316 tests) |
+
 

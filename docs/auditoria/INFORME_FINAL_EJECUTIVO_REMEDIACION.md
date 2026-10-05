@@ -1,42 +1,43 @@
-# INFORME FINAL DE AUDITORÍA TÉCNICA Y REMEDIACIÓN — JINXAS v0.5.2
+# INFORME FINAL DE AUDITORÍA TÉCNICA Y REMEDIACIÓN — JINXAS v0.5.3
 
 **Proyecto:** JinxAS (Asistente de Voz para Windows con STT, LLM y RAG Locales)  
 **Destinatario:** Estudiante de Desarrollo de Software Multiplataforma (DSM)  
 **Rol del Evaluador:** Auditor Técnico Independiente (Ingeniería de Software y Seguridad de Aplicaciones)  
-**Fecha de Emisión:** 4 de octubre de 2026  
+**Fecha de Emisión:** 5 de octubre de 2026  
 **Rama:** `main` (Publicada en GitHub: [https://github.com/DAHL13/JinxAS.git](https://github.com/DAHL13/JinxAS.git))  
-**Versión / Tag:** `v0.5.2`  
-**Veredicto Final:** **FAVORABLE CON RESERVAS** (hallazgos implementados; pendiente de verificación manual en hardware).
+**Versión / Tag:** `v0.5.3`  
+**Veredicto Final:** **FAVORABLE CON RESERVAS** (pasará a **Favorable** solo cuando el usuario complete `docs/auditoria/VERIFICACION_MANUAL.md` y la CI en GitHub esté en verde para `v0.5.3`).
 
 ---
 
 ## 1. Resumen Ejecutivo y Dictamen
 
-El encargo de auditoría se completó bajo la modalidad **Modo A (Auditoría + Pruebas Automatizadas + Remediación de Código)**. Se sometió la totalidad de la base de código de JinxAS a análisis estático riguroso, pruebas de estrés y concurrencia, inyección de fallos controlados y validación de empaquetado bajo los estándares PEP 517, 621 y 639.
+El encargo de auditoría se completó bajo la modalidad **Modo A (Auditoría + Pruebas Automatizadas + Remediación de Código)**. Se sometió la base de código de JinxAS a análisis estático, pruebas de concurrencia, inyección de fallos controlados y validación de empaquetado bajo los estándares PEP 517, 621 y 639.
 
-A lo largo de las fases de auditoría profunda se gestionaron **32 hallazgos** (H-001 a H-032), con todos los hallazgos implementados; pendiente de verificación manual en hardware:
+A lo largo de las fases de auditoría se gestionaron **35 hallazgos** (H-001 a H-035), con todos los hallazgos implementados en código y documentación; pendiente de verificación manual en hardware y confirmación de CI:
 - **0 defectos críticos abiertos.**
 - **0 vulnerabilidades de seguridad abiertas.**
 - **0 inconsistencias entre documentación y código.**
-- **314 pruebas unitarias y de resiliencia automatizadas ejecutadas y aprobadas (verificadas el 4 de octubre de 2026 con 0 fallos).**
+- **316 pruebas unitarias y de resiliencia automatizadas recolectadas y aprobadas (verificadas el 5 de octubre de 2026 con 0 fallos).**
 - **0 advertencias en linter (`ruff check .`), habiendo reactivado las reglas antes ignoradas (`F401`, `F841`, `F541`, `E741`).**
 - **Empaquetado Wheel validado con inclusión íntegra de la interfaz gráfica (`jinxas/ui/panel.html`).**
 
 ### Declaración de Reservas (Qué no se pudo verificar en entorno desatendido)
-Conforme a las normas profesionales de auditoría, las pruebas que requieren interacción con dispositivos físicos de entrada y salida o servicios dependientes de red en vivo se declaran como **no verificadas en el entorno automatizado** y deben ser ratificadas por el usuario final:
+Conforme a las normas de auditoría, las pruebas que requieren interacción con dispositivos físicos de entrada y salida, servicios de red en vivo o estado remoto de GitHub Actions se declaran como **no verificadas en el entorno automatizado** y deben ser ratificadas por el usuario final en [`docs/auditoria/VERIFICACION_MANUAL.md`](VERIFICACION_MANUAL.md):
 1. **Micrófono y VAD en caliente:** Comportamiento acústico real frente al ruido ambiental y respuesta de energía de PyAudio.
 2. **Audio físico en altavoces:** Comprobación auditiva en los parlantes de Windows de la no superposición de audio al solicitar repetición o cancelación.
 3. **Apertura de navegadores visuales:** Despacho gráfico en pantalla de Edge y Chrome mediante ShellExecute en una sesión de usuario activa.
 4. **Edge-TTS en línea:** Conectividad directa contra los servidores de síntesis de voz de Microsoft (probada mediante mocks de contingencia).
-5. **Ollama en caliente con Qwen 2.5 3B:** Se probó toda la lógica y serialización con mocks deterministas; la latencia de inferencia en vivo depende de los recursos del CPU en el equipo físico.
+5. **Ollama en caliente con Qwen 2.5 3B:** Se probó la lógica y serialización con mocks deterministas; la latencia de inferencia en vivo depende del CPU en el equipo físico.
+6. **Estado de la CI en GitHub (`windows-latest`):** No verificado desde el entorno local; debe confirmarse en GitHub Actions tras el push.
 
 ---
 
 ## 2. Métricas Técnicas Comparativas (Línea Base vs. Versión Remediada)
 
-| Métrica / Dimensión | Estado Inicial (Línea Base) | Versión Remediada v0.5.2 | Variación e Impacto |
+| Métrica / Dimensión | Estado Inicial (Línea Base) | Versión Remediada v0.5.3 | Variación e Impacto |
 |---|:---:|:---:|:---:|
-| **Pruebas Automatizadas (`pytest`)** | 188 aprobadas | **314 aprobadas (0 fallos; 4 de octubre de 2026)** | **+126 pruebas nuevas** (concurrencia, FAISS real, resiliencia, privacidad, robustez RAG, wake word) |
+| **Pruebas Automatizadas (`pytest`)** | 188 aprobadas | **316 aprobadas (0 fallos; 5 de octubre de 2026)** | **+128 pruebas nuevas** (concurrencia, FAISS real, resiliencia, privacidad, robustez RAG, wake word) |
 | **Tiempo de Ejecución Suite** | 0.89 s | **~2 s** | determinista, aislada de hardware pesado |
 | **Reglas de Calidad (`ruff`)** | 7 reglas ignoradas (59 avisos) | **0 avisos (Reglas activas)** | Código saneado sin variables muertas ni imports huérfanos |
 | **Empaquetado Wheel** | Roto (sin `ui/panel.html`) | **Completo (`jinxas/ui/panel.html`)** | Instalable con `pip` fuera del árbol de directorios |
@@ -210,7 +211,7 @@ A continuación se detalla cada uno de los hallazgos abordados, clasificados por
 - **Remediación:** Escritura atómica vía `_escritura_atomica` con archivo temporal y `os.replace`. Comprobación lazy de cambios por `mtime` y `st_size`. Validación estricta de `ntotal` contra fragmentos reales del manifiesto y bandera de reindexación pendiente.
 - **Prueba:** `tests/test_h018_rag_integridad.py` (5 pruebas de consistencia).
 - **Commit:** `7693082`.
-- **En palabras simples:** Si la máquina se apagaba repentinamente mientras guardaba tus notas, la base de datos se rompía. Ahora se escribe en un borrador seguro y solo se publica cuando está perfecta.
+- **En palabras simples:** Si la máquina se apagaba repentinamente mientras guardaba tus notas, la base de datos se rompía. Ahora se escribe en un borrador seguro y solo se publica cuando está completa.
 
 ---
 
@@ -302,11 +303,39 @@ A continuación se detalla cada uno de los hallazgos abordados, clasificados por
 
 ---
 
+### H-028 a H-032 (MEDIO / ALTO / BAJO) — Tercera revisión (v0.5.2)
+- **Componentes:** `jinxas/config.py`, `jinxas/percepcion.py`, `jinxas/memoria_rag.py`, `jinxas/__main__.py`, `docs/`
+- **Remediación:** Ampliación de variantes fonéticas de wake word y telemetría de casi-coincidencias en DEBUG (H-028); protección de publicación en memoria del RAG, validación de temporal en `_escritura_atomica`, cerrojo `_lock_flag` y limpieza de entradas de notas vacías (H-029); getter thread-safe `_obtener_modelo_centinela()` (H-030); `MSG_LIMITE_RONDAS` coherente en no-streaming y streaming (H-031); extracción de `procesar_eventos_panel` y pruebas aisladas (H-032).
+
+---
+
+### H-033 (ALTO) — Reindexado pendiente con bóveda ausente
+- **Componente:** `jinxas/memoria_rag.py`
+- **Causa:** Cuando `RUTA_VAULT` no existía en `construir_indice`, la rama descartaba `_reindex_pendiente = False` y salía del bucle sin comprobar si otra hebra había marcado una reindexación pendiente tras crear la bóveda.
+- **Remediación:** Si `_reindex_pendiente` es `True` bajo `_lock_flag`, se limpia el flag y se ejecuta `continue` para iniciar una nueva pasada de indexación; si es `False`, se libera `_lock_construir` y se sale.
+- **Prueba:** `tests/test_h033_rag_boveda_ausente.py` (2 pruebas).
+- **Commit:** `b2fe428`.
+
+---
+
+### H-034 y H-035 (BAJO) — Precisión sobre componentes en red y cierre documental v0.5.3
+- **Componentes:** `docs/TROUBLESHOOTING.md`, `README.md`, `docs/ARQUITECTURA.md`, `docs/auditoria/VERIFICACION_MANUAL.md`, `CHANGELOG.md`, `pyproject.toml`, `jinxas/__init__.py`
+- **Remediación:** Se precisó en la documentación que Whisper, Ollama y el RAG operan sin conexión tras la descarga inicial mientras que Edge-TTS y `wttr.in` requieren internet (H-034); se creó la tabla de verificación manual con casillas vacías (`docs/auditoria/VERIFICACION_MANUAL.md`), se documentaron las limitaciones conocidas y se actualizó la versión a `0.5.3` con 316 pruebas verificadas el 5 de octubre de 2026 (H-035).
+
+---
+
 ## 4. Historial Cronológico de Commits en `main`
 
-Todos los cambios fueron consolidados y subidos a la rama principal en GitHub (`https://github.com/DAHL13/JinxAS.git`):
+Todos los cambios fueron consolidados en la rama principal (`https://github.com/DAHL13/JinxAS.git`):
 
 ```text
+35ea56c fix(H-034): precisar en documentacion componentes locales vs con red
+b2fe428 fix(H-033): respetar reindexado pendiente cuando la boveda no existe
+a197ee9 fix(H-032): extraer procesar_eventos_panel, corregir documentacion y subir a v0.5.2
+c70e014 fix(H-031): devolver mensaje explicito al agotar rondas de herramientas
+4ac4652 fix(H-030): sincronizar carga de modelo centinela whisper con cerrojo
+deaf45b fix(H-029): robustecer cache RAG ante fallos de manifiesto, concurrencia y notas vacias
+1f98a61 fix(H-028): ampliar variantes foneticas de wakeword y registrar casi-coincidencias en DEBUG
 7cb8d40 docs(H-027): actualizar reportes de auditoria, version 0.5.1 y sanitizacion de rutas
 cab7f53 fix(H-025): precarga de whisper, saneamiento de tool_calls, config_local json y limpieza de dependencias
 56f01bc fix(H-023): soportar tipo app: con ShellExecute para navegadores Edge y Chrome
@@ -346,43 +375,13 @@ c26545f fix(H-006): usar parámetros de escuchar_y_transcribir en lugar de confi
 
 ## 5. Guía de Verificación Manual en Windows (Para el Estudiante / Usuario)
 
-Para comprobar el asistente en su entorno local con hardware físico de audio y periféricos, sigue estos 8 pasos:
-
-1. **Prueba de Emergency Flush:**
-   - Inicia JinxAS con `python main.py`.
-   - Di *"Jinx, me llamo Carlos y estoy estudiando informática"*. Espera su respuesta.
-   - Pulsa el botón **Emergency Flush** en el panel inferior.
-   - Di *"Jinx, ¿cómo me llamo?"*.
-   - *Resultado esperado:* No debe recordar tu nombre ni el contexto anterior.
-2. **Prueba de Repetición de Audio:**
-   - Haz una consulta simple.
-   - Cuando termine de hablar, pulsa el botón **Repetir**.
-   - *Resultado esperado:* La respuesta debe sonar de forma nítida exactamente **una sola vez**, sin ecos ni voces superpuestas.
-3. **Prueba de Inmunidad a Falsos Positivos de Wake Word:**
-   - Habla cerca del micrófono diciendo en voz normal: *"links"*, *"sinks"*, *"think"*, *"thanks"*.
-   - *Resultado esperado:* El centinela debe permanecer en reposo (en verde o standby) sin activarse hasta que digas claramente *"Jinx"*.
-4. **Prueba de Navegadores en Windows:**
-   - Di *"Jinx, abre el navegador"*. Debe abrirse Microsoft Edge.
-   - Di *"Jinx, abre Chrome"*. Debe abrirse Google Chrome (si está instalado).
-5. **Prueba de Lectura RAG sin Recortes:**
-   - Realiza una pregunta sobre tus notas de Obsidian que requiera información extensa (por ejemplo, conceptos de 3 materias distintas).
-   - *Resultado esperado:* La respuesta sintetiza los tres fragmentos sin emitir la advertencia de texto recortado.
-6. **Prueba de Dictado Extenso de Notas:**
-   - Di *"Jinx, anota en mis notas: Proyecto final de software multiplataforma, entrega de auditoría técnica con 281 pruebas unitarias y empaquetado wheel validado"*.
-   - *Resultado esperado:* La nota se guarda íntegra en la carpeta `Boveda_Obsidian/`.
-7. **Prueba de Privacidad en Bitácora (`logs/jinx.log`):**
-   - Abre `logs/jinx.log` en el Bloc de Notas tras una sesión normal.
-   - *Resultado esperado:* En las líneas marcadas con `INFO` solo aparecen longitudes de texto y tiempos; tus palabras exactas no aparecen en el log.
-8. **Prueba de Reconstrucción de Caché FAISS:**
-   - Cierra el asistente.
-   - Borra la carpeta `.jinx_cache/` o el archivo `indice.faiss`.
-   - Vuelve a iniciar JinxAS y haz una consulta de tus notas.
-   - *Resultado esperado:* El asistente reconstruye transparentemente el índice en segundo plano sin arrojar errores.
+Consulta y rellena la plantilla [`docs/auditoria/VERIFICACION_MANUAL.md`](VERIFICACION_MANUAL.md) con las 11 pruebas manuales en tu equipo con Windows.
 
 ---
 
 ## 6. Conclusión y Veredicto Formal
 
-El sistema **JinxAS v0.5.1** cumple satisfactoriamente con los criterios de auditoría técnica C1 a C5, presentando una arquitectura robusta, resistente a fallos de hardware y red, defensiva contra inyecciones de prompts indirectas, y empaquetada estrictamente bajo los estándares de la Python Packaging Authority (PyPA).
+El sistema **JinxAS v0.5.3** cuenta con las correcciones implementadas para los hallazgos H-001 a H-035 y 316 pruebas automatizadas en verde (verificadas el 5 de octubre de 2026).
 
-Se emite el dictamen oficial: **FAVORABLE CON RESERVAS**, invitando al usuario a realizar la sesión física de audio en vivo para cerrar formalmente las mediciones acústicas.
+Se mantiene el dictamen **FAVORABLE CON RESERVAS**. Este veredicto pasará a **Favorable** únicamente cuando el usuario complete las 11 pruebas de [`docs/auditoria/VERIFICACION_MANUAL.md`](VERIFICACION_MANUAL.md) en su equipo con Windows y confirme que la CI de GitHub (`windows-latest`) está en verde para `v0.5.3`.
+
