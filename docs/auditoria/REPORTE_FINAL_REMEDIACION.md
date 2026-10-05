@@ -1,13 +1,13 @@
 # 📋 Reporte Consolidado de Auditoría, Correcciones y Mejoras — JinxAS
 
 **Proyecto:** JinxAS (Asistente de Voz Local para Windows)  
-**Versión Auditada y Remediada:** v0.5.1 (Consolidada desde v0.5.0)  
+**Versión Auditada y Remediada:** v0.5.2 (Consolidada desde v0.5.1)  
 **Rol:** Auditor Técnico Independiente (Ingeniería de Software y Seguridad de Aplicaciones)  
 **Destinatario:** Estudiante de Desarrollo de Software Multiplataforma  
-**Fecha:** 2 de octubre de 2026  
+**Fecha:** 4 de octubre de 2026  
 **Rama:** `main` (Publicada en GitHub: [https://github.com/DAHL13/JinxAS.git](https://github.com/DAHL13/JinxAS.git))  
-**Etiqueta de Cierre:** `v0.5.1`  
-**Veredicto Final:** **FAVORABLE CON RESERVAS** (100% de hallazgos resueltos; H-017 a H-026 subsanados tras segunda revisión)  
+**Etiqueta de Cierre:** `v0.5.2`  
+**Veredicto Final:** **FAVORABLE CON RESERVAS** (hallazgos implementados; pendiente de verificación manual en hardware)  
 
 ---
 
@@ -15,21 +15,21 @@
 
 El presente encargo se ejecutó bajo la modalidad **Modo A (Auditoría + Pruebas + Remediación)**. Se sometió la totalidad del repositorio a análisis estático, pruebas dinámicas con inyección de fallos, evaluación de seguridad contra estándares internacionales (ISO/IEC 25010 y OWASP Top 10 for LLM Applications / CWE) y validación de empaquetado bajo especificaciones PEP 517, 621 y 639.
 
-Todos los defectos identificados fueron corregidos mediante la metodología **Red-Green-Refactor**: se reprodujo la condición anómala con evidencia demostrable (E1/E2), se formuló la solución en código, se crearon pruebas automatizadas y se generó un commit trazable individual por cada hallazgo. Los hallazgos de segunda revisión (H-017 a H-026) atendieron concurrencia fina de audio, truncados defensivos, mitigación de falsos positivos en centinela, nombres reservados de Windows, XSS en panel y CI realista.
+Todos los defectos identificados fueron abordados mediante la metodología **Red-Green-Refactor**: se reprodujo la condición anómala con evidencia demostrable, se formuló la solución en código, se crearon pruebas automatizadas y se generó un commit trazable individual por cada hallazgo.
 
 ### Tabla de Métricas de Calidad (Antes vs. Después)
 
 | Métrica / Dimensión | Estado Inicial (Línea Base) | Estado Final (Remediado) | Variación e Impacto |
 |---|:---:|:---:|:---:|
-| **Pruebas Unitarias (`pytest`)** | 188 aprobadas | **281 aprobadas (0 fallos)** | **+93 pruebas nuevas** (lógica crítica, resiliencia, FAISS real, wakeword, concurrencia) |
-| **Tiempo de Ejecución de Suite** | 0.89 s | **1.38 s** | 100% desacoplada de hardware pesado y red |
+| **Pruebas Unitarias (`pytest`)** | 188 aprobadas | **314 aprobadas (0 fallos; 4 de octubre de 2026)** | **+126 pruebas nuevas** (lógica crítica, resiliencia, FAISS real, wakeword, concurrencia, robustez RAG) |
+| **Tiempo de Ejecución de Suite** | 0.89 s | **~2 s** | desacoplada de hardware pesado y red |
 | **Reglas de Calidad / Linter (`ruff`)** | 7 reglas silenciadas (59 avisos) | **0 avisos (Reglas activas)** | Código endurecido sin `F401`, `F841`, `F541`, `E741` |
-| **Empaquetado Wheel (`pip`)** | Incompleto (sin interfaz gráfica) | **Completo (`jinxas/ui/panel.html`)** | Instalable y funcional fuera del repositorio (v0.5.1) |
+| **Empaquetado Wheel (`pip`)** | Incompleto (sin interfaz gráfica) | **Completo (`jinxas/ui/panel.html`)** | Instalable y funcional fuera del repositorio (v0.5.2) |
 | **Vulnerabilidades Bandit (Alta)** | 1 detección (B324 / SHA1) | **0 reales (1 falso positivo documentado)** | Mitigado CWE-327 (`usedforsecurity=False`), no criptográfico |
 | **Vulnerabilidades de Librerías** | 3 CVEs en `urllib3 2.7.0` | **0 CVEs (`urllib3==2.8.0`)** | Dependencia actualizada y fijada |
 | **Condiciones de Carrera (CWE-362)** | Riesgo entre UI y bucle de voz | **Neutralizado (`threading.Lock` / `_LOCK_AUDIO_PLAYBACK`)** | Acceso thread-safe sincronizado a memoria y audio |
 | **Inyección de Código (CWE-94)** | Import no confinado de config | **Neutralizado (`config_local.json`)** | Carga restringida y parseada estrictamente con `json.load` |
-| **Hallazgos Totales Abiertos** | 26 identificados | **0 abiertos (100% resueltos)** | Cierre de auditoría en 2 fases |
+| **Hallazgos Totales Abiertos** | 32 identificados | **0 abiertos (hallazgos implementados; pendiente de verificación manual en hardware)** | Cierre de auditoría en 3 fases |
 
 ---
 
@@ -367,7 +367,7 @@ En `obtener_clima()`, solo se capturaba `requests.RequestException`. Si `request
 `ApiPanel.limpiar_memoria_ui` no purgaba inmediatamente la instancia compartida de contexto y el centinela continuaba escuchando ráfagas sin percatarse de la interrupción. Asimismo, `repetir_audio_ui` creaba hilos concurrentes que reproducían voz al mismo tiempo que el bucle de voz principal.
 
 #### ¿Cómo se solucionó?
-1. Se implementó purga inmediata y thread-safe de la memoria en `limpiar_memoria_ui` y `actualizar_contexto_ui`.
+1. El panel marca `evento_reinicio`; el centinela se interrumpe y el bucle de voz purga el contexto antes del siguiente turno.
 2. Se introdujo el cerrojo global `_LOCK_AUDIO_PLAYBACK` en `jinxas/voz.py` para impedir solapamientos en la tarjeta de sonido.
 3. Se integró una tupla de eventos de interrupción (`evento_reinicio`, `evento_regenerar`) en `esperar_palabra_activacion`.
 4. Se validó con la suite [`tests/test_h017_panel_audio.py`](../../tests/test_h017_panel_audio.py).
@@ -585,11 +585,11 @@ c26545f fix(H-006): usar parámetros de escuchar_y_transcribir en lugar de confi
 
 Para reproducir localmente las validaciones de auditoría en cualquier momento:
 
-### 1. Ejecución de la suite completa de pruebas (281 tests)
+### 1. Ejecución de la suite completa de pruebas (314 tests)
 ```powershell
 python -m pytest -q -m "not integration"
 ```
-*Resultado esperado:* `281 passed in ~1.4s` (sin warnings y con 100% de éxito).
+*Resultado esperado:* `314 passed in ~2s` (sin warnings; verificado el 4 de octubre de 2026).
 
 ### 2. Validación de estilo y calidad de código
 ```powershell

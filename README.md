@@ -231,7 +231,7 @@ A raíz de una auditoría exhaustiva de arquitectura (septiembre de 2026), JinxA
 | **Fase 4** | Herramientas confiables | ✅ | `registro.py` como fuente única de verdad, allowlist estricto `exe:`/`uri:`, optimización de latencia de CPU (100 ms) y benchmark `eval_tools.py`. |
 | **Fase 5** | Seguridad, privacidad y documentación | ✅ | Licencia MIT, logs higienizados (JINX_LOG), envoltura de tools y normalización unificada (DRY). |
 | **Fase 6** | Panel SENTINEL honesto y funcional | ✅ | Panel SENTINEL 100% offline (sin CDNs), telemetría real (tok/s), llamadas JS seguras vía `_eval` y layout responsivo. |
-| **Fase 7** | Pruebas de integración, CI y cierre | ✅ | Paquete jinxas/, CI en GitHub Actions, 281 tests unitarios limpios (sin warnings), ARQUITECTURA.md y release v0.5.1 auditado y remediado. |
+| **Fase 7** | Pruebas de integración, CI y cierre | ✅ | Paquete jinxas/, CI en GitHub Actions, 314 tests unitarios limpios (sin warnings; 4 de octubre de 2026), ARQUITECTURA.md y release v0.5.2 (hallazgos implementados; pendiente de verificación manual en hardware). |
 
 ---
 

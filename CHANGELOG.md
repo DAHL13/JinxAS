@@ -3,6 +3,17 @@
 Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [0.5.2] - 2026-10-04
+### Corregido
+- **(H-028)** Variantes fonéticas plausibles agregadas a `VARIANTES_WAKEWORD` (`"jynx"`, `"ginx"`, `"gynx"`, `"jinxe"`, `"jinex"`) verificadas contra falsos positivos, y función `mejor_similitud_wakeword` con registro en nivel `DEBUG` para telemetría de casi-coincidencias.
+- **(H-029)** Robustez del RAG: protección con `try/except` al guardar manifiesto para no abortar publicación del índice en memoria, validación estricta en `_escritura_atomica` levantando `OSError`, eliminación de ventana de carrera mediante cerrojo auxiliar `_lock_flag` en `_reindex_pendiente`, y remoción de entradas en el manifiesto para notas vacías o sin fragmentos evitando reconstrucciones innecesarias en reinicios.
+- **(H-030)** Carga única y thread-safe de modelos Whisper: implementación de `_obtener_modelo_centinela()` con doble comprobación y `_LOCK_MODELOS`, evitando duplicidad en memoria ante concurrencia con `precargar_modelos()`.
+- **(H-031)** Mensaje transparente y consistente al agotar rondas de herramientas: incorporación de `config.MSG_LIMITE_RONDAS` retornado tanto en streaming como en no-streaming cuando persisten `tool_calls` al alcanzar el límite, cerrando el historial con mensajes de rol `tool`.
+- **(H-032)** Extracción y prueba unitaria de `procesar_eventos_panel` para Emergency Flush y regeneración de audio; saneamiento de documentación, actualización de métricas a 314 pruebas recolectadas/ejecutadas (4 de octubre de 2026) e incremento de versión a `0.5.2`.
+
+### Añadido
+- 33 pruebas unitarias nuevas (314 en total; verificadas el 4 de octubre de 2026) cubriendo variantes de wake word, casi-coincidencias, robustez RAG, concurrencia de modelos Whisper, límites de rondas y eventos de panel.
+
 ## [0.5.1] - 2026-10-02
 ### Corregido
 - **(H-001)** `ui/panel.html` no se incluía en el wheel; movido a `jinxas/ui/` con resolución de ruta por `__file__`.
@@ -18,7 +29,7 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 - **(H-013)** Formato deprecated de licencia en `pyproject.toml` migrado a especificación PEP 639.
 - **(H-015)** Sincronización de acceso a `contexto` en `ApiPanel` mediante `threading.Lock` eliminando condición de carrera (CWE-362).
 - **(H-016)** Manejo robusto de excepciones de red en `obtener_clima`.
-- **(H-017)** Desacople y concurrencia de audio/panel: Emergency Flush inmediato, interrupción reactiva del centinela con tupla de eventos y exclusión mutua (`_LOCK_AUDIO_PLAYBACK`) en reproducción de voz.
+- **(H-017)** Desacople y concurrencia de audio/panel: El panel marca `evento_reinicio`; el centinela se interrumpe y el bucle de voz purga el contexto antes del siguiente turno, interrupción reactiva del centinela con tupla de eventos y exclusión mutua (`_LOCK_AUDIO_PLAYBACK`) en reproducción de voz.
 - **(H-018)** Integridad de caché RAG y FAISS: escritura atómica con archivo temporal (`_escritura_atomica`), hashing SHA-1 perezoso por mtime/size, validación de `ntotal` contra manifiesto y bucle de reindexación ante construcciones pendientes.
 - **(H-019)** Presupuesto de contexto LLM y truncado defensivo: `MAX_CHARS_RESULTADO_TOOL = 3200`, `LLM_OPCIONES` con `num_ctx: 4096, num_predict: 256`, recorte no destructivo por fragmentos en `buscar_semantica` y advertencia al 90% de ocupación de contexto.
 - **(H-020)** Eliminación de falsos positivos en centinela: umbral difuso elevado a 90, descarte de tokens de menos de 3 caracteres y soporte de la variante fonética `"jinxs"`.

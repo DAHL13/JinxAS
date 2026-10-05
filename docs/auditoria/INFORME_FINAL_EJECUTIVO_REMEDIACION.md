@@ -1,12 +1,12 @@
-# INFORME FINAL DE AUDITORÍA TÉCNICA Y REMEDIACIÓN — JINXAS v0.5.1
+# INFORME FINAL DE AUDITORÍA TÉCNICA Y REMEDIACIÓN — JINXAS v0.5.2
 
 **Proyecto:** JinxAS (Asistente de Voz Local Autónomo para Windows)  
 **Destinatario:** Estudiante de Desarrollo de Software Multiplataforma (DSM)  
 **Rol del Evaluador:** Auditor Técnico Independiente (Ingeniería de Software y Seguridad de Aplicaciones)  
-**Fecha de Emisión:** 2 de octubre de 2026  
+**Fecha de Emisión:** 4 de octubre de 2026  
 **Rama:** `main` (Publicada en GitHub: [https://github.com/DAHL13/JinxAS.git](https://github.com/DAHL13/JinxAS.git))  
-**Versión / Tag:** `v0.5.1`  
-**Veredicto Final:** **FAVORABLE CON RESERVAS** (100% de defectos de código resueltos; reserva circunscrita a la ratificación manual en hardware físico por parte del usuario).
+**Versión / Tag:** `v0.5.2`  
+**Veredicto Final:** **FAVORABLE CON RESERVAS** (hallazgos implementados; pendiente de verificación manual en hardware).
 
 ---
 
@@ -14,11 +14,11 @@
 
 El encargo de auditoría se completó bajo la modalidad **Modo A (Auditoría + Pruebas Automatizadas + Remediación de Código)**. Se sometió la totalidad de la base de código de JinxAS a análisis estático riguroso, pruebas de estrés y concurrencia, inyección de fallos controlados y validación de empaquetado bajo los estándares PEP 517, 621 y 639.
 
-A lo largo de dos fases de auditoría profunda se gestionaron **27 hallazgos** (H-001 a H-027), logrando una tasa de resolución del **100%**:
+A lo largo de las fases de auditoría profunda se gestionaron **32 hallazgos** (H-001 a H-032), con todos los hallazgos implementados; pendiente de verificación manual en hardware:
 - **0 defectos críticos abiertos.**
 - **0 vulnerabilidades de seguridad abiertas.**
 - **0 inconsistencias entre documentación y código.**
-- **281 pruebas unitarias y de resiliencia automatizadas ejecutadas y aprobadas (100% en verde, 0 fallos).**
+- **314 pruebas unitarias y de resiliencia automatizadas ejecutadas y aprobadas (verificadas el 4 de octubre de 2026 con 0 fallos).**
 - **0 advertencias en linter (`ruff check .`), habiendo reactivado las reglas antes ignoradas (`F401`, `F841`, `F541`, `E741`).**
 - **Empaquetado Wheel validado con inclusión íntegra de la interfaz gráfica (`jinxas/ui/panel.html`).**
 
@@ -34,10 +34,10 @@ Conforme a las normas profesionales de auditoría, las pruebas que requieren int
 
 ## 2. Métricas Técnicas Comparativas (Línea Base vs. Versión Remediada)
 
-| Métrica / Dimensión | Estado Inicial (Línea Base) | Versión Remediada v0.5.1 | Variación e Impacto |
+| Métrica / Dimensión | Estado Inicial (Línea Base) | Versión Remediada v0.5.2 | Variación e Impacto |
 |---|:---:|:---:|:---:|
-| **Pruebas Automatizadas (`pytest`)** | 188 aprobadas | **281 aprobadas (0 fallos)** | **+93 pruebas nuevas** (concurrencia, FAISS real, resiliencia, privacidad) |
-| **Tiempo de Ejecución Suite** | 0.89 s | **1.38 s** | 100% determinista, aislada de hardware pesado |
+| **Pruebas Automatizadas (`pytest`)** | 188 aprobadas | **314 aprobadas (0 fallos; 4 de octubre de 2026)** | **+126 pruebas nuevas** (concurrencia, FAISS real, resiliencia, privacidad, robustez RAG, wake word) |
+| **Tiempo de Ejecución Suite** | 0.89 s | **~2 s** | determinista, aislada de hardware pesado |
 | **Reglas de Calidad (`ruff`)** | 7 reglas ignoradas (59 avisos) | **0 avisos (Reglas activas)** | Código saneado sin variables muertas ni imports huérfanos |
 | **Empaquetado Wheel** | Roto (sin `ui/panel.html`) | **Completo (`jinxas/ui/panel.html`)** | Instalable con `pip` fuera del árbol de directorios |
 | **Seguridad Bandit** | 1 High (B324 / SHA1) | **0 High reales** | Falso positivo documentado (`usedforsecurity=False`), no criptográfico |
@@ -197,7 +197,7 @@ A continuación se detalla cada uno de los hallazgos abordados, clasificados por
 ### H-017 (ALTO) — Desacople de audio y concurrencia de panel (CWE-362)
 - **Componentes:** `jinxas/interfaz.py`, `jinxas/__main__.py`, `jinxas/percepcion.py`, `jinxas/voz.py`
 - **Causa:** Emergency Flush no limpiaba inmediatamente la instancia en memoria ni cancelaba al centinela; `repetir_audio_ui` solapaba la voz sobre la tarjeta de sonido.
-- **Remediación:** Purga atómica con cerrojo en `ApiPanel`, cancelación reactiva en `esperar_palabra_activacion` con tupla de eventos de interrupción, y cerrojo global `_LOCK_AUDIO_PLAYBACK` en `reproducir_voz`.
+- **Remediación:** El panel marca `evento_reinicio`; el centinela se interrumpe y el bucle de voz purga el contexto antes del siguiente turno, cancelación reactiva en `esperar_palabra_activacion` con tupla de eventos de interrupción, y cerrojo global `_LOCK_AUDIO_PLAYBACK` en `reproducir_voz`.
 - **Prueba:** `tests/test_h017_panel_audio.py` (3 pruebas concurrentes).
 - **Commit:** `dbdf313`.
 - **En palabras simples:** Si apretabas el botón de borrar memoria, el asistente aún podía recordar cosas viejas si estaba a mitad de escuchar, o hablar dos veces encima de sí mismo. Se coordinó el reproductor de sonido para hablar siempre ordenadamente.
@@ -295,7 +295,7 @@ A continuación se detalla cada uno de los hallazgos abordados, clasificados por
 
 ### H-027 (BAJO) — Higiene del repositorio, sanitización de rutas locales y versión 0.5.1
 - **Componentes:** `docs/auditoria/*`, `docs/BASELINE.md`, `jinxas/__init__.py`, `pyproject.toml`, `README.md`, `CHANGELOG.md`
-- **Causa:** Existencia de rutas absolutas que exponían nombres de usuario locales (`file:///c:/Users/Pcrz/...`), versión desincronizada entre paquetes y reportes, y falta de tag formal.
+- **Causa:** Existencia de rutas absolutas que exponían nombres de usuario locales (rutas absolutas locales), versión desincronizada entre paquetes y reportes, y falta de tag formal.
 - **Remediación:** Conversión de todos los enlaces absolutos a rutas relativas (verificado con `git grep`); incremento de versión a `0.5.1` en `__init__.py`, `pyproject.toml`, `README.md` y `CHANGELOG.md`; emisión del tag de versión `v0.5.1`.
 - **Commit:** `7cb8d40`.
 - **En palabras simples:** Se limpiaron enlaces que tenían carpetas personales del usuario, se actualizó el número de versión oficial a 0.5.1 y se etiquetó el proyecto para publicación.

@@ -368,6 +368,33 @@ def ejecutar_turno(contexto: list) -> str:
         texto_final = (respuesta.get("content") or "").strip() or "Listo."
     return texto_final
 
+def procesar_eventos_panel(contexto, evento_reinicio, evento_regenerar, api_js, panel) -> tuple[list, bool]:
+    """Devuelve (contexto, manejado). manejado=True si debe hacerse `continue` en el bucle."""
+    if evento_reinicio and evento_reinicio.is_set():
+        evento_reinicio.clear()
+        logging.info("[PANEL] Reinicio de memoria solicitado desde el panel UI (Emergency Flush)...")
+        contexto = [{"role": "system", "content": SYSTEM_PROMPT}]
+        if api_js is not None and hasattr(api_js, "contexto"):
+            api_js.contexto = contexto
+        reproducir_voz("Memoria reiniciada.")
+        if panel and hasattr(panel, "actualizar_respuesta"):
+            panel.actualizar_respuesta("Memoria reiniciada.", 0)
+        return contexto, True
+
+    if evento_regenerar and evento_regenerar.is_set():
+        evento_regenerar.clear()
+        logging.info("[PANEL] Regeneración de respuesta solicitada desde el panel UI...")
+        ultimo_asistente = next(
+            (m["content"] for m in reversed(contexto) if m.get("role") == "assistant" and m.get("content")),
+            None,
+        )
+        if ultimo_asistente:
+            reproducir_voz(ultimo_asistente)
+        return contexto, True
+
+    return contexto, False
+
+
 def bucle_voz_secundario(
     detener: threading.Event = None,
     panel=None,
@@ -410,25 +437,10 @@ def bucle_voz_secundario(
     while not detener.is_set():
         try:
             # Control interactivo desde la UI (Emergency Flush / Regenerar)
-            if evento_reinicio and evento_reinicio.is_set():
-                evento_reinicio.clear()
-                logging.info("[PANEL] Reinicio de memoria solicitado desde el panel UI (Emergency Flush)...")
-                contexto = [{"role": "system", "content": SYSTEM_PROMPT}]
-                if api_js is not None and hasattr(api_js, "contexto"):
-                    api_js.contexto = contexto
-                reproducir_voz("Memoria reiniciada.")
-                panel.actualizar_respuesta("Memoria reiniciada.", 0)
-                continue
-
-            if evento_regenerar and evento_regenerar.is_set():
-                evento_regenerar.clear()
-                logging.info("[PANEL] Regeneración de respuesta solicitada desde el panel UI...")
-                ultimo_asistente = next(
-                    (m["content"] for m in reversed(contexto) if m.get("role") == "assistant" and m.get("content")),
-                    None,
-                )
-                if ultimo_asistente:
-                    reproducir_voz(ultimo_asistente)
+            contexto, manejado = procesar_eventos_panel(
+                contexto, evento_reinicio, evento_regenerar, api_js, panel
+            )
+            if manejado:
                 continue
 
             # ── Estado 1: Centinela — esperando wake word ──

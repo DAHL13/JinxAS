@@ -1,9 +1,9 @@
-# Informe Final de Auditoría Técnica — JinxAS v0.5.1
+# Informe Final de Auditoría Técnica — JinxAS v0.5.2
 
-**Fecha:** 2 de octubre de 2026
+**Fecha:** 4 de octubre de 2026
 **Auditor:** Auditoría técnica independiente (automatizada)
 **Rama:** `main` (Publicada en GitHub: `https://github.com/DAHL13/JinxAS.git`)
-**Etiqueta:** `v0.5.1`
+**Etiqueta:** `v0.5.2`
 **Hash base:** `a197ee99de2aa8b4e3d65ceb7994c7fa896a6e62`
 
 ---
@@ -11,9 +11,9 @@
 ## 1. Resumen Ejecutivo
 
 Se auditó el proyecto JinxAS en modo A (auditoría + pruebas + remediación).
-Se identificaron y procesaron **26 hallazgos** (H-001 a H-026): 1 crítico, 5 altos, 11 medios y 9 bajos.
-Se remediaron **todos los 26 hallazgos al 100%** en dos fases de revisión y remediación profunda.
-La suite de pruebas pasó de 188 a **281 pruebas** (93 pruebas nuevas, incluyendo suites de resiliencia, FAISS real, privacidad de logs, wakeword robusto y concurrencia UI/audio), todas en verde.
+Se identificaron y procesaron **32 hallazgos** (H-001 a H-032).
+Se implementaron las soluciones para todos los hallazgos; pendiente de verificación manual en hardware.
+La suite de pruebas cuenta con **314 pruebas** (verificadas el 4 de octubre de 2026), todas en verde.
 El wheel incluye `jinxas/ui/panel.html` y el empaquetado es totalmente funcional fuera del repositorio.
 Las reglas de Ruff se endurecieron retirando F401, F841, F541 y E741 de la lista de ignoradas.
 Se sincronizó el acceso concurrente entre pywebview y el bucle de voz (CWE-362), se desacopló la reproducción de audio mediante `_LOCK_AUDIO_PLAYBACK`, se mitigó el riesgo de XSS en panel SENTINEL y se blindó la carga de configuración con `config_local.json`.

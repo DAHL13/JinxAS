@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jinxas"
-version = "0.5.1"
+version = "0.5.2"
 description = "Asistente de voz local para PC con STT, LLM y RAG autónomos."
 readme = "README.md"
 requires-python = ">=3.12"

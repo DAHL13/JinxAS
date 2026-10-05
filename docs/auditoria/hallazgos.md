@@ -421,3 +421,83 @@
 | **Decisión** | Corregir |
 | **Estado** | ✅ Corregido — commit `de671da` | Prueba: `tests/test_rag_faiss_real.py` |
 
+---
+
+## H-028 — Wake word: variantes reales y diagnóstico de casi-coincidencias
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/config.py, jinxas/percepcion.py |
+| **Condición** | Con umbral 90 el centinela no activaba ante transcripciones plausibles como "jynx", "ginx", "gynx", "jinxe" o "jinex", y no existía telemetría de casi-coincidencias para diagnosticar falsos negativos. |
+| **Criterio** | C2 (ISO 25010 — Usabilidad y Fiabilidad de Percepción) |
+| **Causa** | Lista reducida de variantes explícitas y ausencia de métrica diagnóstica en nivel DEBUG. |
+| **Efecto** | Falta de activación ante pronunciaciones válidas y carencia de visibilidad técnica ante palabras cercanas. |
+| **Severidad** | **MEDIO** |
+| **En palabras simples** | Si el reconocedor entendía "jynx" o "ginx" en lugar de "jinx", el asistente no respondía. Se añadieron esas variantes (verificando que no activen falsos positivos) y se registró un log en DEBUG cuando casi coincide. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `1ae8665` | Prueba: `tests/test_h028_wakeword.py` |
+
+---
+
+## H-029 — Robustez del RAG (manifiesto, escrituras atómicas, concurrencia y notas vacías)
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/memoria_rag.py |
+| **Condición** | Fallo de I/O en `_guardar_manifiesto` abortaba la publicación del índice en memoria; `_escritura_atomica` creaba archivos vacíos para mocks; existía ventana de carrera en `_reindex_pendiente`; vaciar notas dejaba IDs viejos en el manifiesto causando reconstrucciones innecesarias en reinicios. |
+| **Criterio** | C2 (ISO 25010 — Fiabilidad, Tolerancia a Fallos e Integridad de Datos) |
+| **Causa** | Falta de captura defensiva en serialización de manifiesto, cerrojo único sin cerrojo auxiliar de flag y omisión de limpieza de entradas en notas vacías. |
+| **Efecto** | Pérdida de búsquedas semánticas en la sesión o descarte innecesario del caché al reiniciar. |
+| **Severidad** | **ALTO** |
+| **En palabras simples** | Si fallaba el guardado del manifiesto en disco, el asistente dejaba de buscar notas en esa sesión. Además, vaciar una nota provocaba que al reiniciar se recalculase todo desde cero. Ahora es completamente robusto y tolerante a fallos. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `deaf45b` | Prueba: `tests/test_h029_rag_robustez.py` |
+
+---
+
+## H-030 — Carga única y segura de modelos Whisper en memoria
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/percepcion.py |
+| **Condición** | `esperar_palabra_activacion` cargaba `_MODELO_CENTINELA` sin `_LOCK_MODELOS`, compitiendo con `precargar_modelos()` y provocando doble carga en memoria; `precargar_modelos()` retenía un cerrojo unificado prolongado. |
+| **Criterio** | C2 (ISO 25010 — Eficiencia y Concurrencia segura), CWE-362 |
+| **Causa** | Falta de getter thread-safe con doble comprobación para el centinela y cerrojo monolítico compartido. |
+| **Efecto** | Consumo duplicado de memoria RAM y CPU al arrancar el asistente si el usuario hablaba de inmediato. |
+| **Severidad** | **MEDIO** |
+| **En palabras simples** | Si el usuario hablaba nada más abrir el programa, Whisper podía cargarse dos veces en la memoria. Se implementó una carga protegida con cerrojo para garantizar una única instancia. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `4ac4652` | Prueba: `tests/test_h030_modelos.py` |
+
+---
+
+## H-031 — Mensaje coherente al agotar rondas de herramientas
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/config.py, jinxas/__main__.py |
+| **Condición** | En modo no-streaming, al agotarse `MAX_RONDAS_TOOLS` con `tool_calls` pendientes, el asistente respondía `"Listo."` a pesar de no haber completado la acción solicitada. |
+| **Criterio** | C1 (ISO 25010 — Exactitud y Veracidad Funcional) |
+| **Causa** | Fallback a `"Listo."` cuando `content` venía vacío en respuestas truncadas por límite de pasos. |
+| **Efecto** | Confirmación engañosa de acciones que no fueron completadas. |
+| **Severidad** | **MEDIO** |
+| **En palabras simples** | Si el asistente alcanzaba el límite de herramientas, decía "Listo" como si hubiera terminado la tarea. Ahora informa transparentemente que no pudo completar la acción debido al límite de pasos. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido — commit `c70e014` | Prueba: `tests/test_h031_limite_rondas.py` |
+
+---
+
+## H-032 — Prueba de flush de punta a punta y saneamiento de documentación
+
+| Campo | Detalle |
+|-------|---------|
+| **Componente** | jinxas/__main__.py, docs/, CHANGELOG.md, pyproject.toml, jinxas/__init__.py |
+| **Condición** | Manejo de eventos del panel (`evento_reinicio`, `evento_regenerar`) incrustado dentro del bucle de voz sin prueba unitaria aislada; descripciones inexactas de H-017 y presencia de rutas locales y métricas sin verificar. |
+| **Criterio** | C2 (ISO 25010 — Mantenibilidad y Calidad de Pruebas), C5 (Documentación Verificable) |
+| **Causa** | Acoplamiento de la lógica de eventos en el cuerpo del bucle de voz secundario. |
+| **Efecto** | Imposibilidad de probar de forma aislada la purga de contexto y afirmaciones no sustentadas en la documentación. |
+| **Severidad** | **BAJO** |
+| **En palabras simples** | Se extrajo la función de eventos del panel para probar directamente el botón de vaciar memoria y repetir audio, y se corrigieron todos los reportes técnicos con cifras reales y verificadas. |
+| **Decisión** | Corregir |
+| **Estado** | ✅ Corregido | Prueba: `tests/test_h032_eventos_panel.py` |
+
