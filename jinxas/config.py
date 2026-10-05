@@ -68,6 +68,7 @@ CIUDAD_POR_DEFECTO = CIUDAD
 URL_CLIMA = f"https://wttr.in/{quote(CIUDAD)}?format=%C+%t&lang=es"
 
 MAX_RONDAS_TOOLS = 3
+MSG_LIMITE_RONDAS = "No pude completar la acción: se alcanzó el límite de pasos."
 MAX_CHARS_RESULTADO_TOOL = 3200
 
 ATAJOS = True

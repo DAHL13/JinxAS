@@ -222,7 +222,7 @@ def ejecutar_turno_streaming(
                         "tool_name": nombre,
                         "content": "[Límite de rondas de herramientas alcanzado; acción no ejecutada]",
                     })
-                texto_final = "Límite de rondas de herramientas alcanzado."
+                texto_final = config.MSG_LIMITE_RONDAS
                 break
 
             for tc in tool_calls_acum:
@@ -295,6 +295,7 @@ def ejecutar_turno_streaming(
                         "tool_name": nombre,
                         "content": "[Límite de rondas de herramientas alcanzado; acción no ejecutada]",
                     })
+                texto_final = config.MSG_LIMITE_RONDAS
                 break
             for tc in tool_calls_tardios:
                 nombre, args = _extraer_llamada(tc)
@@ -362,8 +363,9 @@ def ejecutar_turno(contexto: list) -> str:
                 "tool_name": nombre,
                 "content": "[Límite de rondas de herramientas alcanzado; acción no ejecutada]",
             })
-
-    texto_final = (respuesta.get("content") or "").strip() or "Listo."
+        texto_final = config.MSG_LIMITE_RONDAS
+    else:
+        texto_final = (respuesta.get("content") or "").strip() or "Listo."
     return texto_final
 
 def bucle_voz_secundario(
@@ -574,8 +576,9 @@ def bucle_voz_secundario(
                                         "tool_name": nombre,
                                         "content": "[Límite de rondas de herramientas alcanzado; acción no ejecutada]",
                                     })
-
-                            texto_final = (respuesta.get("content") or "").strip() or "Listo."
+                                texto_final = config.MSG_LIMITE_RONDAS
+                            else:
+                                texto_final = (respuesta.get("content") or "").strip() or "Listo."
                             if "tok_sec" in respuesta:
                                 tiempos["tok_sec"] = respuesta["tok_sec"]
 
