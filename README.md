@@ -20,6 +20,8 @@ Jinx escucha de forma pasiva mediante un detector de wake word centinela, proces
 - 📊 **[Línea Base y Benchmarks](docs/BASELINE.md):** Mediciones de latencia, TTFA, rendimiento y consumo de RAM.
 - 🛠️ **[Guía de Solución de Problemas](docs/TROUBLESHOOTING.md):** Diagnósticos y soluciones prácticas para Windows 10/11.
 - 📜 **[Registro de Cambios (Changelog)](CHANGELOG.md):** Historial completo de versiones siguiendo la especificación Keep a Changelog.
+- 📋 **[Reporte Consolidado de Auditoría](docs/auditoria/REPORTE_FINAL_REMEDIACION.md):** Detalle técnico de los 32 hallazgos remediados (H-001 a H-032).
+- 📑 **[Informe Ejecutivo de Remediación](docs/auditoria/INFORME_FINAL_EJECUTIVO_REMEDIACION.md):** Resumen de calidad, seguridad y métricas comparativas v0.5.2.
 
 ---
 
@@ -64,7 +66,21 @@ El diseño de JinxAS elimina vectores comunes de vulnerabilidad en asistentes de
 
 4. **Blindaje de Sistema de Archivos (`jinxas/memoria.py`):**
    - Prevención activa de *Path Traversal* (`..`) y sanitización de caracteres ilegales en Windows (`\ / : * ? " < > |`).
-   - Bloqueo de nombres de archivo reservados de Windows (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`).
+   - Bloqueo de nombres de archivo reservados de Windows (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`) incluso acompañados de extensiones (`CON.md`, `nul.txt`).
+
+5. **Palabra de Activación Robusta y Telemetría de Diagnóstico (`jinxas/percepcion.py`):**
+   - Umbral de similitud difusa elevado a 90 (`UMBRAL_WAKEWORD = 90`) y descarte de palabras de menos de 3 letras para erradicar falsos positivos (`links`, `sinks`, `think`, etc.).
+   - Catálogo ampliado de 9 variantes fonéticas válidas (`jinx`, `jinks`, `sphinx`, `jinxs`, `jynx`, `ginx`, `gynx`, `jinxe`, `jinex`).
+   - Diagnóstico automático en nivel `DEBUG` para registrar casi-coincidencias (score ≥ 70) preservando la privacidad en `INFO`.
+
+6. **Límites de Ejecución y Respuestas Coherentes (`jinxas/__main__.py`):**
+   - Límite estricto de seguridad de 3 rondas consecutivas de herramientas (`MAX_RONDAS_TOOLS = 3`).
+   - Si un modelo agota las rondas con llamadas pendientes, responde de manera transparente con `MSG_LIMITE_RONDAS` ("No pude completar la acción: se alcanzó el límite de pasos.") y cierra cada llamada con su correspondiente mensaje `tool`.
+
+7. **Robustez e Integridad Vectorial RAG (`jinxas/memoria_rag.py`):**
+   - Serialización atómica con archivos temporales y `os.replace` para evitar índices corruptos ante apagados abruptos.
+   - Sincronización concurrente mediante cerrojos `_lock_construir` y `_lock_flag` ante reindexaciones pendientes.
+   - Limpieza automática de metadatos en notas vacías para preservar consistencia de `ntotal` en reinicios.
 
 ---
 
@@ -135,11 +151,11 @@ pip install -e .
 ```
 
 ### 3. Verificar el estado del proyecto con la suite de pruebas
-La suite de pruebas unitarias está desacoplada de hardware pesado y se ejecuta en menos de un segundo:
+La suite de pruebas unitarias está desacoplada de hardware pesado y se ejecuta en menos de dos segundos:
 ```bash
 python -m pytest -q
 ```
-*(281 pruebas pasando en verde)*.
+*(314 pruebas pasando en verde; verificadas el 4 de octubre de 2026)*.
 
 Para evaluar la precisión del enrutamiento de herramientas contra el LLM real:
 ```bash
@@ -169,13 +185,14 @@ Se abrirá la ventana gráfica del panel **SENTINEL** y se iniciará el centinel
 JinxAS/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml             # Pipeline de CI en Windows (Ruff + Pytest)
+│       └── ci.yml             # Pipeline de CI en Windows (Ruff + Pytest + pip-audit + Bandit)
 ├── docs/
 │   ├── ARQUITECTURA.md        # Diagrama de flujo Mermaid y subsistemas
 │   ├── BASELINE.md            # Línea base de hardware, latencias y telemetría
-│   └── TROUBLESHOOTING.md     # Guía de solución de problemas en Windows
+│   ├── TROUBLESHOOTING.md     # Guía de solución de problemas en Windows
+│   └── auditoria/             # Informes completos de auditoría y remediación técnica
 ├── jinxas/                    # Paquete principal del asistente (PEP 621)
-│   ├── __init__.py            # Versión v0.5.1 y registro de módulo
+│   ├── __init__.py            # Versión v0.5.2 y registro de módulo
 │   ├── __main__.py            # Orquestador del bucle de voz y GUI
 │   ├── atajos.py              # Enrutador determinista por regex (0 ms LLM)
 │   ├── cerebro.py             # Cliente Ollama, tool calling y métricas tok/s
@@ -192,8 +209,8 @@ JinxAS/
 │   ├── ui/                    # Recursos web del panel embebidos en el paquete
 │   │   └── panel.html         # Panel SENTINEL 100% offline (sin CDNs)
 │   └── voz.py                 # TTS: Edge-TTS streaming y reproductor pygame
-├── tests/                     # Suite de pruebas unitarias y de integración
-│   ├── conftest.py            # Mocks ligeros de hardware y modelos
+├── tests/                     # Suite de pruebas unitarias y de integración (314 tests)
+│   ├── conftest.py            # Carga condicional de dependencias reales y mocks
 │   ├── test_comandos.py       # Coincidencia exacta de comandos de salida y reinicio
 │   ├── test_f1_criticas.py    # Robustez del bucle y llamadas a herramientas
 │   ├── test_f2_streaming_voz.py # Pipeline de síntesis y reproducción por streaming
@@ -203,8 +220,22 @@ JinxAS/
 │   ├── test_f5_seguridad.py   # Sanitización de logs y envoltura defensiva
 │   ├── test_f7_atajos.py      # Resolución determinista por regex
 │   ├── test_f7_conversacion.py # Gestión y recorte de memoria conversacional
-│   ├── test_logica.py         # Pruebas deterministas de normalización y utilidades
-│   ├── test_main_helpers.py   # Helpers de extracción de llamadas a tools
+│   ├── test_h017_panel_audio.py # Desacople de audio y concurrencia de UI
+│   ├── test_h018_rag_integridad.py # Integridad atómica de FAISS y caché RAG
+│   ├── test_h019_truncados.py # Presupuesto de contexto LLM y truncado seguro
+│   ├── test_h020_wakeword.py  # Mitigación de falsos positivos en palabra de activación
+│   ├── test_h021_logs_privacidad.py # Higienización de privacidad en logs
+│   ├── test_h022_panel.py     # Protección anti-XSS en interfaz web
+│   ├── test_h023_abrir_navegadores.py # Despacho de navegadores en Windows
+│   ├── test_h024_nombres_reservados.py # Bloqueo de nombres reservados con extensión
+│   ├── test_h025_menores.py   # Precarga en segundo plano y ciclo de vida
+│   ├── test_h028_wakeword.py  # Variantes fonéticas ampliadas y casi-coincidencias
+│   ├── test_h029_rag_robustez.py # Robustez del RAG ante notas vacías y concurrencia
+│   ├── test_h030_modelos.py   # Carga única thread-safe de Whisper
+│   ├── test_h031_limite_rondas.py # Mensaje transparente ante límite de rondas
+│   ├── test_h032_eventos_panel.py # Eventos de panel (Emergency Flush y repetir)
+│   ├── test_rag_faiss_real.py # Pruebas deterministas con motor FAISS real
+│   ├── test_resiliencia.py    # Suite de inyección de fallos y resiliencia
 │   └── eval_tools.py          # Benchmark de enrutamiento Ollama
 ├── .gitignore                 # Exclusiones de git (caché, logs, bóveda)
 ├── CHANGELOG.md               # Historial de cambios formal (Keep a Changelog)
