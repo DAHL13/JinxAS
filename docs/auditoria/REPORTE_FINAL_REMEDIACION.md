@@ -380,7 +380,7 @@ En `obtener_clima()`, solo se capturaba `requests.RequestException`. Si `request
 - **Severidad:** **ALTO** | **Commit:** `7693082`
 
 > 💡 **En palabras simples:**  
-> Si la computadora se apagaba mientras guardaba el índice de búsqueda en tus notas, la base de datos quedaba arruinada. Ahora se guarda primero en un archivo provisional y solo se reemplaza cuando está 100% completo y verificado.
+> Si la computadora se apagaba mientras guardaba el índice de búsqueda en tus notas, la base de datos quedaba arruinada. Ahora se guarda primero en un archivo provisional y solo se reemplaza cuando está completo y verificado.
 
 #### ¿Cuál era el problema?
 La serialización de `indice.faiss` y `manifiesto.json` no era atómica. Ante interrupciones abruptas o excepciones, los archivos quedaban corruptos a cero bytes. Además, el cálculo del SHA-1 de cada archivo se realizaba indiscriminadamente en cada ciclo.

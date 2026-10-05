@@ -1,7 +1,7 @@
 # 🤖 Jinx (JinxAS) — Asistente de Voz Inteligente
 
 ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
-![LLM · STT · RAG](https://img.shields.io/badge/LLM%20%C2%B7%20STT%20%C2%B7%20RAG-100%25%20Locales-2EA043)
+![LLM · STT · RAG](https://img.shields.io/badge/LLM%20%C2%B7%20STT%20%C2%B7%20RAG-Locales-2EA043)
 ![Voz](https://img.shields.io/badge/Voz-Edge--TTS%20(online)-0078D4?logo=microsoftedge&logoColor=white)
 ![Ollama](https://img.shields.io/badge/LLM-Ollama%20%2F%20Qwen2.5--3B-000000?logo=ollama&logoColor=white)
 ![Whisper](https://img.shields.io/badge/STT-OpenAI%20Whisper-412991?logo=openai&logoColor=white)
@@ -33,10 +33,10 @@ En cumplimiento de una política de transparencia y honestidad técnica sobre lo
 |---|---|---|---|---|
 | **Voz (Edge-TTS)** | El texto de cada respuesta formulada por el asistente | Servidores Microsoft Edge TTS | En cada turno que genera respuesta de voz hablada | Dependencia de red no oficial. Si el servicio de Microsoft cambia su protocolo, la voz puede requerir ajustes o mantenimiento. |
 | **Clima (`wttr.in`)** | Nombre de la ciudad configurada y dirección IP pública | Servicio web `https://wttr.in` | Únicamente al invocar la herramienta `obtener_clima` | Consulta puntual mediante petición HTTP GET codificada en UTF-8. |
-| **Panel SENTINEL (`pywebview`)** | **0 bytes (No sale nada)** | Sistema local | Al abrir la ventana gráfica del asistente | 100% local y offline desde la Fase 6. Sin dependencias externas, fuentes locales del sistema y estilos CSS embebidos sin llamadas a CDNs. |
-| **Primer Arranque (Modelos)** | Peticiones HTTPS para descarga de artefactos binarios | OpenAI (Whisper), Hugging Face (MiniLM) y Ollama (Qwen) | Únicamente en la instalación inicial | Descarga de pesos para ejecución posterior sin conexión. |
+| **Panel SENTINEL (`pywebview`)** | **0 bytes (No sale nada)** | Sistema local | Al abrir la ventana gráfica del asistente | Interfaz local desde la Fase 6. Sin dependencias externas, fuentes locales del sistema y estilos CSS embebidos sin llamadas a CDNs. |
+| **Primer Arranque (Modelos)** | Peticiones HTTPS para descarga de artefactos binarios | OpenAI (Whisper), Hugging Face (MiniLM) y Ollama (Qwen) | Únicamente en la instalación inicial | Descarga de pesos de STT, LLM y RAG para ejecución posterior sin conexión (TTS y clima siguen necesitando internet). |
 | **Micrófono y Audio** | **0 bytes (No sale nada)** | Hardware local | Continuo durante la escucha | El flujo de audio se procesa en memoria RAM local. |
-| **Whisper (STT)** | **0 bytes (No sale nada)** | CPU / GPU local | Al hablar tras activar a Jinx | Inferencia del modelo de transcripción 100% en la máquina. |
+| **Whisper (STT)** | **0 bytes (No sale nada)** | CPU / GPU local | Al hablar tras activar a Jinx | Inferencia del modelo de transcripción en la máquina local. |
 | **Ollama / Qwen 2.5 3B (LLM)** | **0 bytes (No sale nada)** | CPU / GPU local | Durante el razonamiento y tool calling | Los prompts, conversaciones y razonamientos nunca tocan una nube externa. |
 | **FAISS + Embeddings (RAG)** | **0 bytes (No sale nada)** | Memoria RAM y disco local | Indexación y consulta semántica | Los vectores y notas se procesan localmente sin telemetría. |
 | **Bóveda de Notas (`Boveda_Obsidian/`)** | **0 bytes (No sale nada)** | Sistema de archivos local | Al crear, editar o buscar apuntes | Tus notas privadas permanecen estrictamente en tu disco duro. |
@@ -207,7 +207,7 @@ JinxAS/
 │   ├── percepcion.py          # STT: Whisper centinela y Whisper comandos
 │   ├── registro.py            # Registro único de herramientas (@herramienta)
 │   ├── ui/                    # Recursos web del panel embebidos en el paquete
-│   │   └── panel.html         # Panel SENTINEL 100% offline (sin CDNs)
+│   │   └── panel.html         # Panel SENTINEL local (sin CDNs)
 │   └── voz.py                 # TTS: Edge-TTS streaming y reproductor pygame
 ├── tests/                     # Suite de pruebas unitarias y de integración (314 tests)
 │   ├── conftest.py            # Carga condicional de dependencias reales y mocks
@@ -261,7 +261,7 @@ A raíz de una auditoría exhaustiva de arquitectura (septiembre de 2026), JinxA
 | **Fase 3** | Memoria y RAG robusto | ✅ | Prevención de *Path Traversal*, nombres reservados de Windows, resolución de IDs exacta en `IndexIDMap2` y sincronización atómica con `_lock_construir`. |
 | **Fase 4** | Herramientas confiables | ✅ | `registro.py` como fuente única de verdad, allowlist estricto `exe:`/`uri:`, optimización de latencia de CPU (100 ms) y benchmark `eval_tools.py`. |
 | **Fase 5** | Seguridad, privacidad y documentación | ✅ | Licencia MIT, logs higienizados (JINX_LOG), envoltura de tools y normalización unificada (DRY). |
-| **Fase 6** | Panel SENTINEL honesto y funcional | ✅ | Panel SENTINEL 100% offline (sin CDNs), telemetría real (tok/s), llamadas JS seguras vía `_eval` y layout responsivo. |
+| **Fase 6** | Panel SENTINEL honesto y funcional | ✅ | Panel SENTINEL local (sin CDNs), telemetría real (tok/s), llamadas JS seguras vía `_eval` y layout responsivo. |
 | **Fase 7** | Pruebas de integración, CI y cierre | ✅ | Paquete jinxas/, CI en GitHub Actions, 314 tests unitarios limpios (sin warnings; 4 de octubre de 2026), ARQUITECTURA.md y release v0.5.2 (hallazgos implementados; pendiente de verificación manual en hardware). |
 
 ---

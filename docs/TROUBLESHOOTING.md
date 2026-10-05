@@ -127,4 +127,4 @@ Durante el primer inicio absoluto, las librerías descargan y guardan en caché 
 
 ### Diagnóstico y Solución
 - Esta demora inicial de descarga **ocurre únicamente una vez**.
-- En arranques posteriores, todos los modelos se cargan directamente desde el disco NVMe/SSD local en pocos segundos, operando 100% desconectados de la red para la inferencia.
+- En arranques posteriores, Whisper, Ollama y el RAG se cargan desde disco y funcionan sin conexión. El TTS (Edge-TTS) y el clima (wttr.in) siguen necesitando internet.

@@ -254,7 +254,7 @@ No quedan propuestas pendientes. Todas las mejoras de arquitectura, robustez, co
 5. **Recorte de contexto (conversacion.py):** Lógica pura sin I/O, elimina mensajes `tool` huérfanos. Bien diseñado.
 6. **Caché incremental RAG (memoria_rag.py):** IndexIDMap2 con caché de manifiesto por SHA1. Diseño robusto.
 7. **Sanitización de nombres de archivo (memoria.py):** Prevención de path traversal y nombres reservados de Windows.
-8. **Panel SENTINEL offline:** Sin dependencias de CDN, JS seguro vía `json.dumps()`, `_eval` con manejo de errores.
+8. **Panel SENTINEL local (sin CDNs):** Recursos integrados localmente, JS seguro vía `json.dumps()`, `_eval` con manejo de errores.
 9. **Streaming TTS por frases (voz.py):** Productor/consumidor con cola bounded y centinela None.
 10. **Registro único de herramientas (registro.py):** Single source of truth con decorador `@herramienta`.
 

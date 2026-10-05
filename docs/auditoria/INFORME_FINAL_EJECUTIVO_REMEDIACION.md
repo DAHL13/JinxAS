@@ -1,6 +1,6 @@
 # INFORME FINAL DE AUDITORÍA TÉCNICA Y REMEDIACIÓN — JINXAS v0.5.2
 
-**Proyecto:** JinxAS (Asistente de Voz Local Autónomo para Windows)  
+**Proyecto:** JinxAS (Asistente de Voz para Windows con STT, LLM y RAG Locales)  
 **Destinatario:** Estudiante de Desarrollo de Software Multiplataforma (DSM)  
 **Rol del Evaluador:** Auditor Técnico Independiente (Ingeniería de Software y Seguridad de Aplicaciones)  
 **Fecha de Emisión:** 4 de octubre de 2026  
