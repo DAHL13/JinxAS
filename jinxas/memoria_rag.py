@@ -27,6 +27,7 @@ from jinxas import config
 # ---------------------------------------------------------------------------
 _lock_rag = threading.Lock()
 _lock_construir = threading.Lock()
+_lock_flag = threading.Lock()
 _indexando: bool = False
 _reindex_pendiente: bool = False
 
@@ -85,8 +86,7 @@ def _escritura_atomica(ruta: str, escribir) -> None:
     tmp = ruta + ".tmp"
     escribir(tmp)
     if not os.path.exists(tmp):
-        with open(tmp, "wb") as f:
-            f.write(b"")
+        raise OSError(f"La escritura atómica no generó el archivo temporal: {tmp}")
     os.replace(tmp, ruta)
 
 
@@ -105,10 +105,7 @@ def _asegurar_indice() -> None:
         return
     import faiss
     raw_dim = _obtener_modelo().get_sentence_embedding_dimension()
-    try:
-        dim = int(raw_dim)
-    except (TypeError, ValueError):
-        dim = 384
+    dim = int(raw_dim)
     try:
         _indice = faiss.IndexIDMap2(faiss.IndexFlatIP(dim))
     except Exception:
@@ -259,12 +256,14 @@ def construir_indice(panel=None) -> int:
 
     import faiss  # import perezoso
 
-    if not _lock_construir.acquire(blocking=False):
-        _reindex_pendiente = True
-        logging.info("[RAG] Construcción de índice ya en progreso. Marcando reindexación pendiente.")
-        return len(_fragmentos)
+    with _lock_flag:
+        if not _lock_construir.acquire(blocking=False):
+            _reindex_pendiente = True
+            logging.info("[RAG] Construcción de índice ya en progreso. Marcando reindexación pendiente.")
+            return len(_fragmentos)
 
     total_chunks = len(_fragmentos)
+    construir_adquirido = True
     try:
         while True:
             _reindex_pendiente = False
@@ -276,10 +275,7 @@ def construir_indice(panel=None) -> int:
                     if hasattr(modelo, "get_embedding_dimension")
                     else modelo.get_sentence_embedding_dimension()
                 )
-                try:
-                    dim = int(raw_dim)
-                except (TypeError, ValueError):
-                    dim = 384
+                dim = int(raw_dim)
 
                 ruta_vault = config.RUTA_VAULT
                 max_chars = getattr(config, "MAX_CHARS_CHUNK", 900)
@@ -295,6 +291,10 @@ def construir_indice(panel=None) -> int:
                         _indice = None
                         _fragmentos = []
                         _origenes = []
+                    with _lock_flag:
+                        _reindex_pendiente = False
+                        _lock_construir.release()
+                        construir_adquirido = False
                     break
 
                 # ---- Cargar manifiesto y decidir si reconstruir desde cero --------
@@ -423,6 +423,9 @@ def construir_indice(panel=None) -> int:
                         with open(ruta_completa, "r", encoding="utf-8", errors="ignore") as f:
                             contenido = f.read()
                         if not contenido.strip():
+                            if entrada_previa:
+                                entradas.pop(ruta_rel, None)
+                                n_nuevos += 1
                             continue
                     except Exception as e:
                         logging.warning("[RAG] No se pudo leer '%s': %s", ruta_completa, e)
@@ -431,6 +434,9 @@ def construir_indice(panel=None) -> int:
                     titulo = os.path.splitext(os.path.basename(ruta_completa))[0]
                     chunks_txt = dividir_en_chunks(contenido, titulo, max_chars)
                     if not chunks_txt:
+                        if entrada_previa:
+                            entradas.pop(ruta_rel, None)
+                            n_nuevos += 1
                         continue
 
                     # Vectorizar solo estos chunks
@@ -488,7 +494,10 @@ def construir_indice(panel=None) -> int:
                             "next_id": next_id,
                             **entradas,
                         }
-                        _guardar_manifiesto(nuevo_manifiesto)
+                        try:
+                            _guardar_manifiesto(nuevo_manifiesto)
+                        except Exception as e:
+                            logging.warning("[RAG] No se pudo guardar el manifiesto en caché: %s", e)
 
                 total_chunks = len(nuevos_fragmentos)
                 logging.info("[RAG] Índice listo: %d fragmentos.", total_chunks)
@@ -505,12 +514,17 @@ def construir_indice(panel=None) -> int:
             finally:
                 _indexando = False
 
-            if not _reindex_pendiente:
-                break
+            with _lock_flag:
+                if not _reindex_pendiente:
+                    _lock_construir.release()
+                    construir_adquirido = False
+                    break
+                _reindex_pendiente = False
             logging.info("[RAG] Reindexación pendiente detectada. Ejecutando nueva pasada.")
 
     finally:
-        _lock_construir.release()
+        if construir_adquirido:
+            _lock_construir.release()
 
     return total_chunks
 
