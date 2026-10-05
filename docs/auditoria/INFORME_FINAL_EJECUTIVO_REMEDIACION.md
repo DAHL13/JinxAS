@@ -29,7 +29,7 @@ Conforme a las normas de auditoría, las pruebas que requieren interacción con 
 3. **Apertura de navegadores visuales:** Despacho gráfico en pantalla de Edge y Chrome mediante ShellExecute en una sesión de usuario activa.
 4. **Edge-TTS en línea:** Conectividad directa contra los servidores de síntesis de voz de Microsoft (probada mediante mocks de contingencia).
 5. **Ollama en caliente con Qwen 2.5 3B:** Se probó la lógica y serialización con mocks deterministas; la latencia de inferencia en vivo depende del CPU en el equipo físico.
-6. **Estado de la CI en GitHub (`windows-latest`):** No verificado desde el entorno local; debe confirmarse en GitHub Actions tras el push.
+*(Nota: El estado de la CI en GitHub Actions sobre `windows-latest` fue verificado en verde — `success`, run `37374439576`, 5 de octubre de 2026).*
 
 ---
 

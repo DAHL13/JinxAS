@@ -16,6 +16,6 @@ Esta lista debe ser completada manualmente por el usuario en su equipo con Windo
 | 10 | Vaciar una nota en Obsidian y reiniciar | No reconstruye todo el índice (ver log) | ☐ | | |
 | 11 | Arrancar sin internet y hablar | Falla solo el TTS (pitido de respaldo); el resto responde | ☐ | | |
 
-Estado de la CI en GitHub (a completar tras el push): ______ (no verificado desde el entorno del agente)
+Estado de la CI en GitHub (a completar tras el push): EN VERDE (`success` — run `37374439576` en `windows-latest`, verificado el 2026-10-05)
 
 Veredicto tras verificación manual: ______

@@ -233,7 +233,7 @@ Las correcciones de código y documentación están implementadas. Queda pendien
 | Medianas de latencia en vivo (TTFA, STT, LLM) | Requiere sesión de voz con micrófono activo en caliente |
 | eval_tools.py (16/17 del BASELINE) | Requiere Ollama daemon activo con modelo descargado |
 | Edge-TTS funcional | Requiere conexión a internet a servidores Microsoft |
-| CI en GitHub Actions | No verificado desde el entorno del agente |
+| CI en GitHub Actions (`windows-latest`) | ✅ Verificado en verde (`success`, run `37374439576`, 5 de octubre de 2026) |
 | Despacho interactivo de Edge/Chrome | Requiere sesión de usuario visual activa en Windows |
 
 ---
@@ -279,6 +279,6 @@ Las correcciones de código y documentación están implementadas. Queda pendien
 
 ## Información de Cierre
 
-- **Hash final:** `d3b8cc23264485b5aa4ed9b983daa99e85d7a100`
-- **Enlace a la rama:** https://github.com/DAHL13/JinxAS/compare/main...auditoria-profunda
-- **Estado del CI:** No verificado (`gh` CLI no disponible)
+- **Hash final:** `16a7136`
+- **Enlace a la rama:** https://github.com/DAHL13/JinxAS/tree/main
+- **Estado del CI:** ✅ En verde (`success`, run `37374439576`, 5 de octubre de 2026)
