@@ -120,6 +120,22 @@ def coincide_wakeword(texto: str, variantes: list, umbral: int | None = None) ->
     palabras = [p.lower() for p in texto.split() if len(p.strip()) >= 3]
     return any(fuzz.ratio(p, v.lower()) >= umbral for p in palabras for v in variantes)
 
+
+def mejor_similitud_wakeword(texto: str, variantes: list) -> tuple[str, float]:
+    """Devuelve (palabra, similitud) de la palabra de >=3 letras más parecida a una variante."""
+    palabras = [p.lower() for p in texto.split() if len(p.strip()) >= 3]
+    if not palabras or not variantes:
+        return ("", 0.0)
+    mejor_palabra = ""
+    mejor_score = 0.0
+    for p in palabras:
+        for v in variantes:
+            score = float(fuzz.ratio(p, v.lower()))
+            if score > mejor_score:
+                mejor_score = score
+                mejor_palabra = p
+    return (mejor_palabra, mejor_score)
+
 def esperar_palabra_activacion(
     palabra_clave: str = PALABRA_ACTIVACION,
     variaciones: list = None,
@@ -199,6 +215,10 @@ def esperar_palabra_activacion(
                         logging.debug("Palabra de activación detectada: '%s'", texto_detectado)
                         if panel: panel.actualizar_satelite(1, 1, "Micrófono", "Detectado: ¡Jinx!")
                         return True
+                    else:
+                        palabra_casi, score_casi = mejor_similitud_wakeword(texto_limpio, variantes)
+                        if score_casi >= 70:
+                            logging.debug("Casi-coincidencia wake word: '%s' -> %.1f", palabra_casi, score_casi)
 
                 except Exception as e:
                     logging.debug("Ráfaga de audio no procesada o descartada: %s", e)

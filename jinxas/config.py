@@ -33,7 +33,17 @@ MAX_CHARS_CHUNK = 900
 PALABRA_ACTIVACION = "jinx"
 MODELO_WAKEWORD = "tiny.en"
 UMBRAL_WAKEWORD = 90
-VARIANTES_WAKEWORD = ["jinx", "jinks", "sphinx", "jinxs"]
+VARIANTES_WAKEWORD = [
+    "jinx",
+    "jinks",
+    "sphinx",
+    "jinxs",
+    "jynx",
+    "ginx",
+    "gynx",
+    "jinxe",
+    "jinex",
+]
 
 # Nivel de logging configurable por entorno (F5-04).
 # JINX_LOG=DEBUG activa logs detallados con contenido de notas/tools.
