@@ -292,10 +292,12 @@ def construir_indice(panel=None) -> int:
                         _fragmentos = []
                         _origenes = []
                     with _lock_flag:
+                        if not _reindex_pendiente:
+                            _lock_construir.release()
+                            construir_adquirido = False
+                            break
                         _reindex_pendiente = False
-                        _lock_construir.release()
-                        construir_adquirido = False
-                    break
+                    continue
 
                 # ---- Cargar manifiesto y decidir si reconstruir desde cero --------
                 manifiesto = _cargar_manifiesto()
