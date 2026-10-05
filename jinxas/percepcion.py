@@ -45,6 +45,17 @@ def _obtener_reconocedor_comandos() -> sr.Recognizer:
     return _RECONOCEDOR_COMANDOS
 
 
+def _obtener_modelo_centinela():
+    """Carga el modelo centinela de Whisper de forma segura con lock (doble comprobación)."""
+    global _MODELO_CENTINELA
+    if _MODELO_CENTINELA is None:
+        with _LOCK_MODELOS:
+            if _MODELO_CENTINELA is None:
+                logging.info("Cargando modelo centinela de Whisper (%s)...", config.MODELO_WAKEWORD)
+                _MODELO_CENTINELA = whisper.load_model(config.MODELO_WAKEWORD)
+    return _MODELO_CENTINELA
+
+
 def _obtener_modelo_comandos():
     """Carga el modelo Whisper principal para comandos de forma segura con lock."""
     global _MODELO_WHISPER_COMANDOS
@@ -61,14 +72,8 @@ def precargar_modelos() -> None:
     Precarga en memoria los modelos Whisper (centinela y comandos) de forma thread-safe.
     Evita latencias prolongadas durante el primer comando del usuario.
     """
-    global _MODELO_CENTINELA, _MODELO_WHISPER_COMANDOS
-    with _LOCK_MODELOS:
-        if _MODELO_CENTINELA is None:
-            logging.info("Precargando modelo centinela de Whisper (%s)...", config.MODELO_WAKEWORD)
-            _MODELO_CENTINELA = whisper.load_model(config.MODELO_WAKEWORD)
-        if _MODELO_WHISPER_COMANDOS is None:
-            logging.info("Precargando modelo Whisper principal (comandos, %s)...", config.MODELO_WHISPER)
-            _MODELO_WHISPER_COMANDOS = whisper.load_model(config.MODELO_WHISPER)
+    _obtener_modelo_centinela()
+    _obtener_modelo_comandos()
 
 
 # ── Filtro de alucinaciones ────────────────────────────────────────────────────
@@ -131,11 +136,7 @@ def esperar_palabra_activacion(
             return True
         return any(e is not None and e.is_set() for e in eventos_interrupcion)
 
-    global _MODELO_CENTINELA
-    if _MODELO_CENTINELA is None:
-        logging.info("Cargando modelo centinela de Whisper (%s)...", config.MODELO_WAKEWORD)
-        _MODELO_CENTINELA = whisper.load_model(config.MODELO_WAKEWORD)
-    modelo_centinela = _MODELO_CENTINELA
+    modelo_centinela = _obtener_modelo_centinela()
 
     recognizer = _RECOGNIZER
 
